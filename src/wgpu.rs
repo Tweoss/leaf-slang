@@ -1,7 +1,8 @@
 use eframe::egui_wgpu::wgpu;
-use egui::{Color32, Rect, Sense, Stroke, TextureId, Vec2, pos2};
+use egui::{Color32, Rect, Sense, TextureId, Vec2, pos2};
 use wgpu::{
-    CommandEncoderDescriptor, TextureAspect, TextureUsages, TextureViewDescriptor, util::DeviceExt,
+    CommandEncoderDescriptor, TextureAspect, TextureUsages, TextureViewDescriptor,
+    util::DeviceExt as _,
 };
 
 pub struct Custom3d {
