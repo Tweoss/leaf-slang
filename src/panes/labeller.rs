@@ -13,7 +13,7 @@ pub struct LabelState {
     bbox_index: usize,
     bbox_dragging: bool,
     bbox_white_background: bool,
-    focused: bool,
+    hovered: bool,
 }
 
 impl Default for LabelState {
@@ -25,7 +25,7 @@ impl Default for LabelState {
             bbox_index: 0,
             bbox_dragging: false,
             bbox_white_background: true,
-            focused: false,
+            hovered: false,
         }
     }
 }
@@ -59,7 +59,8 @@ pub fn ui(
     ui.horizontal(|ui| {
         ui.label("Tool");
         ui.radio_value(&mut label_state.tool, Tool::Corner, "Corner");
-        ui.radio_value(&mut label_state.tool, Tool::BBox, "BBox");
+        ui.radio_value(&mut label_state.tool, Tool::BBox, "BBox")
+            .changed();
 
         ui.label("Corner Index");
         ui.add(DragValue::new(&mut label_state.corner_index).range(0..=4));
@@ -68,8 +69,11 @@ pub fn ui(
         const MAX_PETALS: i32 = 100;
         ui.add(DragValue::new(&mut label_state.bbox_index).range(0..=MAX_PETALS));
 
-        ui.checkbox(&mut label_state.bbox_white_background, "White Background")
+        ui.checkbox(&mut label_state.bbox_white_background, "White Background");
     });
+    if ui.button("Warp Images").clicked() {
+        // TODO
+    }
 
     let pointer = ui.ctx().input(|i| {
         (
@@ -79,41 +83,23 @@ pub fn ui(
             i.pointer.primary_released(),
         )
     });
-    egui::Frame::new()
-        .stroke(Stroke::new(
-            2.0,
-            if label_state.focused {
-                Color32::BLUE
-            } else {
-                Color32::GRAY
-            },
-        ))
-        .show(ui, |ui| {
-            let clicked = ui.ctx().input(|i| i.pointer.primary_clicked());
-            let plot_clicked = Plot::new("Labelling Plot")
-                .legend(Legend::default())
-                .data_aspect(1.0)
-                .view_aspect(1.0)
-                .allow_drag(false)
-                .show(ui, |plot_ui| {
-                    for (i, t) in pair.1.iter().enumerate() {
-                        handle_image(label_state, labels, pointer, plot_ui, i, t);
-                    }
-                })
-                .response
-                .clicked();
-
-            if plot_clicked {
-                label_state.focused = true
-            } else {
-                if clicked {
-                    label_state.focused = false;
-                }
+    let plot_hovered = Plot::new("Labelling Plot")
+        .legend(Legend::default())
+        .data_aspect(1.0)
+        .view_aspect(1.0)
+        .allow_drag(false)
+        .show(ui, |plot_ui| {
+            for (i, t) in pair.1.iter().enumerate() {
+                handle_image(label_state, labels, pointer, plot_ui, i, t);
             }
-        });
+        })
+        .response
+        .hovered();
+
+    label_state.hovered = plot_hovered;
 
     // Advance counters.
-    if label_state.focused && ui.ctx().input(|i| i.key_pressed(egui::Key::Space)) {
+    if label_state.hovered && ui.ctx().input(|i| i.key_pressed(egui::Key::Space)) {
         match label_state.tool {
             Tool::Corner => label_state.corner_index = (label_state.corner_index + 1) % 4,
             Tool::BBox => label_state.bbox_index += 1,
@@ -131,7 +117,18 @@ fn handle_image(
     i: usize,
     t: &crate::images::Image,
 ) {
-    let texture = t.texture.expect("loaded texture");
+    // Depending on which mode we are in, show original or warped image.
+    let texture = match label_state.tool {
+        Tool::Corner => t.texture.expect("loaded texture"),
+        Tool::BBox => {
+            if let Some(t) = t.normalized_texture {
+                t
+            } else {
+                return;
+            }
+        }
+    };
+
     let width = 1.0;
     let height = texture.size.y / texture.size.x;
     let center_x = if i == 0 { -0.5 } else { 0.5 };
@@ -141,39 +138,43 @@ fn handle_image(
         PlotPoint::new(center_x, 0.0),
         (width, height),
     ));
-    // Draw plot points.
+    // Draw plot points for this mode.
     if let Some(label) = labels.get(&t.id) {
-        plot_ui.points(
-            Points::new(
-                "corners ".to_owned() + &t.id.to_string(),
-                label.corners.map(|p| [p.x as f64, p.y as f64]).to_vec(),
-            )
-            .radius(20.0)
-            .color(if i == 0 { Color32::RED } else { Color32::BLUE }.gamma_multiply(0.5))
-            .shape(egui_plot::MarkerShape::Cross),
-        );
-        for (i, (white_background, bbox)) in label.bounding_boxes.iter().enumerate() {
-            let color = if *white_background {
-                Color32::DARK_RED
-            } else {
-                Color32::LIGHT_RED
-            }
-            .gamma_multiply(0.8);
-            plot_ui.polygon(
-                Polygon::new(
-                    format!("bbox {i} {}", t.id),
-                    [
-                        bbox.left_top(),
-                        bbox.right_top(),
-                        bbox.right_bottom(),
-                        bbox.left_bottom(),
-                    ]
-                    .map(|p| [p.x as f64, p.y as f64])
-                    .to_vec(),
+        match label_state.tool {
+            Tool::Corner => plot_ui.points(
+                Points::new(
+                    "corners ".to_owned() + &t.id.to_string(),
+                    label.corners.map(|p| [p.x as f64, p.y as f64]).to_vec(),
                 )
-                .stroke(Stroke::new(1.0, color)),
-            );
-        }
+                .radius(20.0)
+                .color(if i == 0 { Color32::RED } else { Color32::BLUE }.gamma_multiply(0.5))
+                .shape(egui_plot::MarkerShape::Cross),
+            ),
+            Tool::BBox => {
+                for (i, (white_background, bbox)) in label.bounding_boxes.iter().enumerate() {
+                    let color = if *white_background {
+                        Color32::DARK_RED
+                    } else {
+                        Color32::LIGHT_RED
+                    }
+                    .gamma_multiply(0.8);
+                    plot_ui.polygon(
+                        Polygon::new(
+                            format!("bbox {i} {}", t.id),
+                            [
+                                bbox.left_top(),
+                                bbox.right_top(),
+                                bbox.right_bottom(),
+                                bbox.left_bottom(),
+                            ]
+                            .map(|p| [p.x as f64, p.y as f64])
+                            .to_vec(),
+                        )
+                        .stroke(Stroke::new(1.0, color)),
+                    );
+                }
+            }
+        };
     }
 
     let is_in_bounds = |plot_pos: PlotPoint| {
@@ -182,7 +183,7 @@ fn handle_image(
     };
 
     // Handle mouse input.
-    if label_state.focused
+    if label_state.hovered
         && let Some(mouse_pos) = pos
     {
         handle_mouse(

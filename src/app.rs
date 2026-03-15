@@ -59,7 +59,7 @@ impl App {
                 i.texture = Some(image_to_egui_texture(
                     &cc.egui_ctx,
                     i.id.to_string(),
-                    &i.data,
+                    &i.original_data,
                 ));
             }
         }

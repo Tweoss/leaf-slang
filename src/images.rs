@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 pub struct ImagePair(pub String, pub [Image; 2]);
 pub struct Image {
     pub id: ImageID,
-    pub data: RgbImage,
+    pub original_data: RgbImage,
     pub texture: Option<SizedTexture>,
+    pub normalized_data: Option<RgbImage>,
+    pub normalized_texture: Option<SizedTexture>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]
@@ -101,20 +103,24 @@ fn visit_dir(entry: &std::fs::DirEntry) -> Result<ImagePair, String> {
         dir_name.clone(),
         [
             Image {
-                data: first.into(),
+                original_data: first.into(),
                 id: ImageID {
                     directory: dir_name.clone(),
                     is_first: true,
                 },
                 texture: None,
+                normalized_data: None,
+                normalized_texture: None,
             },
             Image {
-                data: second.into(),
+                original_data: second.into(),
                 id: ImageID {
                     directory: dir_name,
                     is_first: false,
                 },
                 texture: None,
+                normalized_data: None,
+                normalized_texture: None,
             },
         ],
     ))
