@@ -60,7 +60,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(eframe_template::App::new(cc, vec![])))),
+                Box::new(|cc| Ok(Box::new(slangleaf::App::new(cc, vec![])))),
             )
             .await;
 
