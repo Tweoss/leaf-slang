@@ -1,10 +1,20 @@
-#![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::allow_attributes)]
+#[allow(clippy::print_stderr)]
 fn main() -> eframe::Result {
+    use slangleaf::images::load_images;
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
+    let mut args = std::env::args();
+    let directory = args.nth(1).expect("pass directory with image pairs");
+    let (images, errors) = load_images(directory);
+    for error in errors {
+        eprintln!("{error}");
+    }
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -20,7 +30,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "eframe template",
         native_options,
-        Box::new(|cc| Ok(Box::new(eframe_template::TemplateApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(slangleaf::App::new(cc, images)))),
     )
 }
 
@@ -50,7 +60,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(eframe_template::TemplateApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(eframe_template::App::new(cc, vec![])))),
             )
             .await;
 

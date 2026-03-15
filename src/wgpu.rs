@@ -58,7 +58,6 @@ impl Custom3d {
         let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("custom3d"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shader_build/compute.wgsl").into()),
-            // source: wgpu::ShaderSource::Wgsl(include_str!("./custom3d_wgpu_compute.wgsl").into()),
         });
         let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Introduction Compute Pipeline"),

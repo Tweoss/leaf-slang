@@ -1,6 +1,6 @@
-#![warn(clippy::all, rust_2018_idioms)]
-
-mod app;
+pub mod app;
+pub mod images;
 mod panes;
+mod util;
 mod wgpu;
-pub use app::TemplateApp;
+pub use app::App;

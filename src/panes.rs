@@ -1,18 +1,40 @@
-use crate::wgpu::Custom3d;
+pub mod labeller;
 
-#[derive(serde::Serialize, serde::Deserialize)]
+use std::collections::HashMap;
+
+use egui::RichText;
+use egui_tiles::{TileId, Tiles};
+
+use crate::{
+    App,
+    images::{ImageID, ImagePair},
+    panes::labeller::{LabelState, Labels},
+    wgpu::Custom3d,
+};
+
+#[derive(serde::Serialize, serde::Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Pane {
+    #[default]
     Shader,
     Controls,
+    Labeller,
 }
 
-pub fn tree_ui(ui: &mut egui::Ui, tree: &mut egui_tiles::Tree<Pane>, custom_3d: &mut Custom3d) {
-    let mut behavior = PaneData { custom_3d };
-    tree.ui(&mut behavior, ui);
+pub fn tree_ui(ui: &mut egui::Ui, app: &mut App) {
+    let mut behavior = PaneData {
+        custom_3d: &mut app.custom_3d,
+        image_pairs: &mut app.image_pairs,
+        label_state: &mut app.label_state,
+        labels: &mut app.persistent.labels,
+    };
+    app.persistent.tree.ui(&mut behavior, ui);
 }
 
 struct PaneData<'a> {
     custom_3d: &'a mut Custom3d,
+    image_pairs: &'a mut [ImagePair],
+    label_state: &'a mut LabelState,
+    labels: &'a mut HashMap<ImageID, Labels>,
 }
 
 impl egui_tiles::Behavior<Pane> for PaneData<'_> {
@@ -20,6 +42,7 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
         match pane {
             Pane::Shader => "Shader".into(),
             Pane::Controls => "Controls".into(),
+            Pane::Labeller => "Labeller".into(),
         }
     }
 
@@ -30,15 +53,19 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
         pane: &mut Pane,
     ) -> egui_tiles::UiResponse {
         let drag_started = ui
-            .add(egui::Button::new("Drag me!").sense(egui::Sense::drag()))
+            .add(
+                egui::Label::new(RichText::new("↔").heading())
+                    .selectable(false)
+                    .sense(egui::Sense::drag()),
+            )
             .drag_started();
 
         match pane {
             Pane::Shader => self.custom_3d.ui(ui),
             Pane::Controls => {
                 ui.label("controls");
-                // ui.text_edit_singleline(text);
             }
+            Pane::Labeller => labeller::ui(ui, self.image_pairs, self.label_state, self.labels),
         }
 
         if drag_started {
@@ -46,5 +73,8 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
         } else {
             egui_tiles::UiResponse::None
         }
+    }
+    fn is_tab_closable(&self, _tiles: &Tiles<Pane>, _tile_id: TileId) -> bool {
+        true
     }
 }
