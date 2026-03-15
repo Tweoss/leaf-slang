@@ -2,9 +2,10 @@ pub mod warp;
 
 use eframe::egui_wgpu::{RenderState, wgpu};
 use egui::{Color32, Rect, Sense, TextureId, Vec2, pos2};
+use image::{RgbImage, RgbaImage};
 use wgpu::{
-    BindGroupEntry, Buffer, CommandEncoderDescriptor, Device, ShaderModule, Texture, TextureAspect,
-    TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
+    BindGroupEntry, Buffer, CommandEncoderDescriptor, Device, Origin3d, ShaderModule, Texture,
+    TextureAspect, TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
 };
 
 pub struct Custom3d {
@@ -38,7 +39,7 @@ impl Custom3d {
 
         run(
             wgpu_render_state,
-            compute_shader,
+            &compute_shader,
             "slang test",
             &bind_group,
             (16, 16, 1),
@@ -63,6 +64,56 @@ impl Custom3d {
             });
         });
     }
+}
+
+pub fn texture_from_rgba(
+    wgpu_render_state: &RenderState,
+    label: &'static str,
+    image: &RgbaImage,
+) -> (Texture, TextureId) {
+    let device = &wgpu_render_state.device;
+    let dimensions = image.dimensions();
+
+    let texture_size = wgpu::Extent3d {
+        width: dimensions.0,
+        height: dimensions.1,
+        depth_or_array_layers: 1,
+    };
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        label: Some(label),
+        view_formats: &[],
+    });
+    wgpu_render_state.queue.write_texture(
+        wgpu::TexelCopyTextureInfoBase {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        image,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * dimensions.0),
+            rows_per_image: Some(dimensions.1),
+        },
+        texture_size,
+    );
+
+    let id = wgpu_render_state.renderer.write().register_native_texture(
+        device,
+        &texture_to_view(label, &texture),
+        wgpu::FilterMode::Linear,
+    );
+    (texture, id)
 }
 
 pub fn create_texture(
@@ -140,7 +191,7 @@ pub fn buffer_to_bind_group(buffer: &Buffer, index: u32) -> BindGroupEntry<'_> {
 
 pub fn run(
     wgpu_render_state: &RenderState,
-    shader: ShaderModule,
+    shader: &ShaderModule,
     label: &'static str,
     bind_group: &[BindGroupEntry<'_>],
     work_groups: (u32, u32, u32),
@@ -151,7 +202,7 @@ pub fn run(
     let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: Some(label),
         layout: None,
-        module: &shader,
+        module: shader,
         entry_point: None,
         compilation_options: Default::default(),
         cache: Default::default(),

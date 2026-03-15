@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use egui::ComboBox;
+use egui::{ComboBox, Vec2, load::SizedTexture};
+use image::{DynamicImage, RgbaImage};
 
 use crate::{
     images::{ImageID, ImagePair},
@@ -9,8 +10,7 @@ use crate::{
         labeller::{LabelState, Labels},
         tree_ui,
     },
-    util::image_to_egui_texture,
-    wgpu::Custom3d,
+    wgpu::{Custom3d, texture_from_rgba, warp::WarpModule},
 };
 
 pub struct App {
@@ -20,6 +20,7 @@ pub struct App {
     pub image_pairs: Vec<ImagePair>,
     pub new_pane_type: Pane,
     pub label_state: LabelState,
+    pub warp_module: WarpModule,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -54,12 +55,25 @@ impl App {
         } else {
             Persistent::default()
         };
+        let render_state = cc
+            .wgpu_render_state
+            .as_ref()
+            .expect("need a wgpu render context");
         for pair in &mut image_pairs {
             for i in &mut pair.1 {
-                i.texture = Some(image_to_egui_texture(
-                    &cc.egui_ctx,
-                    i.id.to_string(),
-                    &i.original_data,
+                let texture_from_rgba = texture_from_rgba(
+                    render_state,
+                    "loading images",
+                    &RgbaImage::from(DynamicImage::ImageRgb8(i.original_data.clone())),
+                );
+                let texture = texture_from_rgba.0;
+                let id = texture_from_rgba.1;
+                i.texture = Some((
+                    SizedTexture {
+                        id,
+                        size: Vec2::new(texture.size().width as f32, texture.size().height as f32),
+                    },
+                    texture,
                 ));
             }
         }
@@ -69,6 +83,7 @@ impl App {
             image_pairs,
             new_pane_type: Pane::default(),
             label_state: LabelState::default(),
+            warp_module: WarpModule::new(&render_state.device),
         }
     }
 }
@@ -78,7 +93,7 @@ impl eframe::App for App {
         eframe::set_value(storage, eframe::APP_KEY, &self.persistent);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 let is_web = cfg!(target_arch = "wasm32");
@@ -114,7 +129,7 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            tree_ui(ui, self);
+            tree_ui(ui, self, frame);
         });
     }
 }

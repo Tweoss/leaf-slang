@@ -4,7 +4,10 @@ use egui::{Color32, DragValue, Pos2, Rect, Stroke, Vec2};
 use egui_plot::{Legend, Plot, PlotImage, PlotPoint, Points, Polygon};
 use serde::{Deserialize, Serialize};
 
-use crate::images::{ImageID, ImagePair};
+use crate::{
+    images::{ImageID, ImagePair},
+    wgpu::{texture_to_view, warp::WarpModule},
+};
 
 pub struct LabelState {
     pair_index: usize,
@@ -47,6 +50,8 @@ pub fn ui(
     image_pairs: &mut [ImagePair],
     label_state: &mut LabelState,
     labels: &mut HashMap<ImageID, Labels>,
+    warp: &mut WarpModule,
+    frame: &mut eframe::Frame,
 ) {
     ui.label("Target Pair");
     for (i, p) in image_pairs.iter().enumerate() {
@@ -72,7 +77,19 @@ pub fn ui(
         ui.checkbox(&mut label_state.bbox_white_background, "White Background");
     });
     if ui.button("Warp Images").clicked() {
-        // TODO
+        let wgpu_render_state = frame.wgpu_render_state().expect("need a wgpu render state");
+        for i in &mut pair.1 {
+            let texture = &i.texture.as_ref().unwrap().1;
+            let view = texture_to_view("warp images", texture);
+            let (id, out) = warp.run(wgpu_render_state, view, [(0.0, 0.0); 4], (200, 200), || {});
+            i.normalized_texture = Some((
+                egui::load::SizedTexture {
+                    id,
+                    size: Vec2::new(200.0, 200.0),
+                },
+                out,
+            ))
+        }
     }
 
     let pointer = ui.ctx().input(|i| {
@@ -119,10 +136,10 @@ fn handle_image(
 ) {
     // Depending on which mode we are in, show original or warped image.
     let texture = match label_state.tool {
-        Tool::Corner => t.texture.expect("loaded texture"),
+        Tool::Corner => t.texture.as_ref().expect("loaded texture").0,
         Tool::BBox => {
-            if let Some(t) = t.normalized_texture {
-                t
+            if let Some(t) = &t.normalized_texture {
+                t.0
             } else {
                 return;
             }

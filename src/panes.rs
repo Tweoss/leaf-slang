@@ -9,7 +9,7 @@ use crate::{
     App,
     images::{ImageID, ImagePair},
     panes::labeller::{LabelState, Labels},
-    wgpu::Custom3d,
+    wgpu::{Custom3d, warp::WarpModule},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy)]
@@ -20,12 +20,14 @@ pub enum Pane {
     Labeller,
 }
 
-pub fn tree_ui(ui: &mut egui::Ui, app: &mut App) {
+pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
     let mut behavior = PaneData {
         custom_3d: &mut app.custom_3d,
         image_pairs: &mut app.image_pairs,
         label_state: &mut app.label_state,
         labels: &mut app.persistent.labels,
+        warp: &mut app.warp_module,
+        frame,
     };
     app.persistent.tree.ui(&mut behavior, ui);
 }
@@ -35,6 +37,8 @@ struct PaneData<'a> {
     image_pairs: &'a mut [ImagePair],
     label_state: &'a mut LabelState,
     labels: &'a mut HashMap<ImageID, Labels>,
+    warp: &'a mut WarpModule,
+    frame: &'a mut eframe::Frame,
 }
 
 impl egui_tiles::Behavior<Pane> for PaneData<'_> {
@@ -65,7 +69,14 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
             Pane::Controls => {
                 ui.label("controls");
             }
-            Pane::Labeller => labeller::ui(ui, self.image_pairs, self.label_state, self.labels),
+            Pane::Labeller => labeller::ui(
+                ui,
+                self.image_pairs,
+                self.label_state,
+                self.labels,
+                self.warp,
+                self.frame,
+            ),
         }
 
         if drag_started {

@@ -3,14 +3,15 @@ use std::fmt::Display;
 use egui::load::SizedTexture;
 use image::{ImageReader, RgbImage};
 use serde::{Deserialize, Serialize};
+use wgpu::Texture;
 
 pub struct ImagePair(pub String, pub [Image; 2]);
 pub struct Image {
     pub id: ImageID,
     pub original_data: RgbImage,
-    pub texture: Option<SizedTexture>,
+    pub texture: Option<(SizedTexture, Texture)>,
     pub normalized_data: Option<RgbImage>,
-    pub normalized_texture: Option<SizedTexture>,
+    pub normalized_texture: Option<(SizedTexture, Texture)>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]
