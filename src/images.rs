@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use egui::{Pos2, Rect, load::SizedTexture};
+use egui::load::SizedTexture;
 use image::{ImageReader, RgbImage};
 use serde::{Deserialize, Serialize};
 
