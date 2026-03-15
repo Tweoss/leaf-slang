@@ -81,14 +81,21 @@ pub fn ui(
         for i in &mut pair.1 {
             let texture = &i.texture.as_ref().unwrap().1;
             let view = texture_to_view("warp images", texture);
-            let (id, out) = warp.run(wgpu_render_state, view, [(0.0, 0.0); 4], (200, 200), || {});
-            i.normalized_texture = Some((
-                egui::load::SizedTexture {
-                    id,
-                    size: Vec2::new(200.0, 200.0),
-                },
-                out,
-            ))
+            if let Some(l) = labels.get(&i.id) {
+                // Setup warping parameters.
+                let points = l.corners.map(|p| [p.x, p.y]);
+                let (id, out) = warp.run(wgpu_render_state, view, points, (200, 200), || {});
+
+                if let Some(old_texture) = i.normalized_texture.replace((
+                    egui::load::SizedTexture {
+                        id,
+                        size: Vec2::new(200.0, 200.0),
+                    },
+                    out,
+                )) {
+                    old_texture.1.destroy();
+                }
+            }
         }
     }
 
@@ -155,13 +162,27 @@ fn handle_image(
         PlotPoint::new(center_x, 0.0),
         (width, height),
     ));
+
+    let to_image = |plot_pos: PlotPoint| {
+        Pos2::from([
+            ((plot_pos.x - center_x) as f32 / width + 0.5) * texture.size.x,
+            (plot_pos.y as f32 / height + 0.5) * texture.size.y,
+        ])
+    };
+    let to_plot = |p: Pos2| {
+        [
+            (p.x as f64 / texture.size.x as f64 - 0.5) * width as f64 + center_x,
+            (p.y as f64 / texture.size.y as f64 - 0.5) * height as f64,
+        ]
+    };
+
     // Draw plot points for this mode.
     if let Some(label) = labels.get(&t.id) {
         match label_state.tool {
             Tool::Corner => plot_ui.points(
                 Points::new(
                     "corners ".to_owned() + &t.id.to_string(),
-                    label.corners.map(|p| [p.x as f64, p.y as f64]).to_vec(),
+                    label.corners.map(to_plot).to_vec(),
                 )
                 .radius(20.0)
                 .color(if i == 0 { Color32::RED } else { Color32::BLUE }.gamma_multiply(0.5))
@@ -184,7 +205,7 @@ fn handle_image(
                                 bbox.right_bottom(),
                                 bbox.left_bottom(),
                             ]
-                            .map(|p| [p.x as f64, p.y as f64])
+                            .map(to_plot)
                             .to_vec(),
                         )
                         .stroke(Stroke::new(1.0, color)),
@@ -206,11 +227,11 @@ fn handle_image(
         handle_mouse(
             label_state,
             labels,
-            mouse_pos,
-            (clicked, pressed, released),
+            (mouse_pos, clicked, pressed, released),
             plot_ui,
             t,
             is_in_bounds,
+            to_image,
         );
     }
 }
@@ -218,13 +239,14 @@ fn handle_image(
 fn handle_mouse(
     label_state: &mut LabelState,
     labels: &mut HashMap<ImageID, Labels>,
-    mouse_pos: Pos2,
-    (clicked, pressed, released): (bool, bool, bool),
+    (mouse_pos, clicked, pressed, released): (Pos2, bool, bool, bool),
     plot_ui: &mut egui_plot::PlotUi<'_>,
     t: &crate::images::Image,
     is_in_bounds: impl Fn(PlotPoint) -> bool,
+    to_image: impl Fn(PlotPoint) -> Pos2,
 ) {
     let plot_pos = plot_ui.plot_from_screen(mouse_pos);
+    let image_pos = to_image(plot_pos);
     if !is_in_bounds(plot_pos) {
         return;
     }
@@ -235,7 +257,7 @@ fn handle_mouse(
     match label_state.tool {
         Tool::Corner => {
             if clicked {
-                target.corners[label_state.corner_index] = plot_pos.to_pos2();
+                target.corners[label_state.corner_index] = image_pos;
             }
         }
         Tool::BBox => {
@@ -248,7 +270,7 @@ fn handle_mouse(
 
                 target.bounding_boxes[label_state.bbox_index].0 = label_state.bbox_white_background;
                 target.bounding_boxes[label_state.bbox_index].1 =
-                    Rect::from_min_size(plot_pos.to_pos2(), Vec2::ZERO);
+                    Rect::from_min_size(image_pos, Vec2::ZERO);
 
                 label_state.bbox_white_background ^= true;
                 label_state.bbox_dragging = true;
@@ -259,9 +281,7 @@ fn handle_mouse(
                     bounding_boxes: vec![],
                 });
                 match label_state.tool {
-                    Tool::BBox => {
-                        target.bounding_boxes[label_state.bbox_index].1.max = plot_pos.to_pos2()
-                    }
+                    Tool::BBox => target.bounding_boxes[label_state.bbox_index].1.max = image_pos,
                     Tool::Corner => {}
                 }
 

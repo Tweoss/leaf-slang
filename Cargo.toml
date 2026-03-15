@@ -35,6 +35,7 @@ bytemuck = "1.25.0"
 image = "0.25.10"
 egui_extras = { version = "0.33.3", features = ["image"] }
 egui_plot = "0.34.1"
+nalgebra = "0.34.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

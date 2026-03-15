@@ -18,7 +18,7 @@ impl WarpModule {
             shader: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(LABEL),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../shader_build/compute.wgsl").into(),
+                    include_str!("../../shader_build/warp.wgsl").into(),
                 ),
             }),
         }
@@ -28,7 +28,7 @@ impl WarpModule {
         &self,
         wgpu_render_state: &RenderState,
         input: TextureView,
-        quad_points: [(f32, f32); 4],
+        quad_points: [[f32; 2]; 4],
         output_size: (u32, u32),
         callback: impl FnOnce() + Send + 'static,
     ) -> (TextureId, Texture) {
@@ -36,8 +36,9 @@ impl WarpModule {
         let out = create_texture(device, LABEL, output_size);
         let view = texture_to_view(LABEL, &out);
         let id = texture_view_to_egui_id(wgpu_render_state, &view);
-        let floats = [0.0_f32; 4];
-        let uniform_buffer = create_buffer(device, LABEL, &floats);
+        let floats = quad_points.as_flattened();
+        dbg!(floats);
+        let uniform_buffer = create_buffer(device, LABEL, floats);
         let bind_group = [
             view_to_bind_group(&view, 0),
             buffer_to_bind_group(&uniform_buffer, 1),
