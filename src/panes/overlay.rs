@@ -24,7 +24,7 @@ pub fn ui(
     overlay_state: &mut OverlayState,
     label_state: &LabelState,
     labels: &HashMap<ImageID, Labels>,
-    overlays: &mut HashMap<String, Overlay>,
+    overlays: &mut HashMap<(String, usize), Overlay>,
 ) -> Option<()> {
     ui.heading("Overlay");
 
@@ -66,7 +66,9 @@ pub fn ui(
     // Use white background on bottom.
     let (white, black) = if i0.1 { (i0, i1) } else { (i1, i0) };
 
-    let overlay = overlays.entry(directory.clone()).or_default();
+    let overlay = overlays
+        .entry((directory.clone(), overlay_state.petal_index))
+        .or_default();
 
     let plot = Plot::new("Overlay Plot")
         .legend(Legend::default())
@@ -74,7 +76,7 @@ pub fn ui(
         .view_aspect(1.0)
         .allow_drag(false)
         .show(ui, |plot_ui| {
-            let size = white.0.0.size;
+            let size = white.0.egui.size;
             plot_bbox(
                 plot_ui,
                 white.3,
@@ -90,14 +92,14 @@ pub fn ui(
             );
             plot_ui.image(PlotImage::new(
                 directory.clone() + " white",
-                white.0.0.id,
+                white.0.egui.id,
                 PlotPoint::new(0.0, 0.0),
                 size,
             ));
             plot_ui.image(
                 PlotImage::new(
                     directory.clone() + " black",
-                    black.0.0.id,
+                    black.0.egui.id,
                     PlotPoint::new(overlay.dpos.x as f64, overlay.dpos.y as f64),
                     size,
                 )
@@ -121,7 +123,7 @@ pub fn ui(
         let delta = Vec2::new(delta.x * scale[0] as f32, delta.y * scale[1] as f32);
         if shift {
             let dangle = delta.y / 100.0;
-            let relative_pos = black.2.center() - black.0.0.size / 2.0;
+            let relative_pos = black.2.center() - black.0.egui.size / 2.0;
             let dpos = calc_rotate_translation(
                 overlay.dangle + relative_pos.y.atan2(relative_pos.x),
                 dangle,

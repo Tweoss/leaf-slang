@@ -8,6 +8,8 @@ use wgpu::{
     TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
 };
 
+use crate::images::SharedTexture;
+
 pub struct Custom3d {
     texture_id: TextureId,
 }
@@ -70,7 +72,7 @@ pub fn texture_from_rgba(
     wgpu_render_state: &RenderState,
     label: &'static str,
     image: &RgbaImage,
-) -> (Texture, TextureId) {
+) -> SharedTexture {
     let device = &wgpu_render_state.device;
     let dimensions = image.dimensions();
 
@@ -113,7 +115,8 @@ pub fn texture_from_rgba(
         &texture_to_view(label, &texture),
         wgpu::FilterMode::Linear,
     );
-    (texture, id)
+
+    SharedTexture::from_texture_id(texture, id)
 }
 
 pub fn create_texture(

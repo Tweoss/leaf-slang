@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{ComboBox, Vec2, load::SizedTexture};
+use egui::ComboBox;
 use image::{DynamicImage, RgbaImage};
 
 use crate::{
@@ -31,7 +31,7 @@ pub struct App {
 pub struct Persistent {
     pub tree: egui_tiles::Tree<Pane>,
     pub labels: HashMap<ImageID, Labels>,
-    pub overlays: HashMap<String, Overlay>,
+    pub overlays: HashMap<(String, usize), Overlay>,
 }
 
 impl Default for Persistent {
@@ -69,19 +69,10 @@ impl App {
             .expect("need a wgpu render context");
         for pair in &mut image_pairs {
             for i in &mut pair.1 {
-                let texture_from_rgba = texture_from_rgba(
+                i.texture = Some(texture_from_rgba(
                     render_state,
                     "loading images",
                     &RgbaImage::from(DynamicImage::ImageRgb8(i.original_data.clone())),
-                );
-                let texture = texture_from_rgba.0;
-                let id = texture_from_rgba.1;
-                i.texture = Some((
-                    SizedTexture {
-                        id,
-                        size: Vec2::new(texture.size().width as f32, texture.size().height as f32),
-                    },
-                    texture,
                 ));
             }
         }

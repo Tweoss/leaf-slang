@@ -1,17 +1,34 @@
 use std::fmt::Display;
 
-use egui::load::SizedTexture;
+use egui::{TextureId, Vec2, load::SizedTexture};
 use image::{ImageReader, RgbImage};
 use serde::{Deserialize, Serialize};
 use wgpu::Texture;
 
 pub struct ImagePair(pub String, pub [Image; 2]);
+// pub type SharedTexture = (SizedTexture, Texture);
+pub struct SharedTexture {
+    pub egui: SizedTexture,
+    pub wgpu: Texture,
+}
+impl SharedTexture {
+    pub fn from_texture_id(wgpu: Texture, id: TextureId) -> Self {
+        Self {
+            egui: SizedTexture {
+                id,
+                size: Vec2::new(wgpu.size().width as f32, wgpu.size().height as f32),
+            },
+            wgpu,
+        }
+    }
+}
+
 pub struct Image {
     pub id: ImageID,
     pub original_data: RgbImage,
-    pub texture: Option<(SizedTexture, Texture)>,
+    pub texture: Option<SharedTexture>,
     pub normalized_data: Option<RgbImage>,
-    pub normalized_texture: Option<(SizedTexture, Texture)>,
+    pub normalized_texture: Option<SharedTexture>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]

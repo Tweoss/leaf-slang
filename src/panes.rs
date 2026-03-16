@@ -72,7 +72,7 @@ struct PaneData<'a> {
     overlay_state: &'a mut OverlayState,
     label_state: &'a mut LabelState,
     labels: &'a mut HashMap<ImageID, Labels>,
-    overlays: &'a mut HashMap<String, Overlay>,
+    overlays: &'a mut HashMap<(String, usize), Overlay>,
     warp: &'a mut WarpModule,
     frame: &'a mut eframe::Frame,
 }

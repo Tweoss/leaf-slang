@@ -5,7 +5,7 @@ use egui_plot::{Legend, Plot, PlotImage, PlotPoint, Points, Polygon};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    images::{ImageID, ImagePair},
+    images::{ImageID, ImagePair, SharedTexture},
     wgpu::{texture_to_view, warp::WarpModule},
 };
 
@@ -115,7 +115,7 @@ pub fn ui(
     if should_warp {
         let wgpu_render_state = frame.wgpu_render_state().expect("need a wgpu render state");
         for i in &mut pair.1 {
-            let texture = &i.texture.as_ref().unwrap().1;
+            let texture = &i.texture.as_ref().unwrap().wgpu;
             let view = texture_to_view("warp images", texture);
             if let Some(l) = labels.get(&i.id) {
                 // Setup warping parameters.
@@ -124,14 +124,11 @@ pub fn ui(
                     .map(|p| [p.x / texture.width() as f32, p.y / texture.height() as f32]);
                 let (id, out) = warp.run(wgpu_render_state, view, points, WARP_OUTPUT_SIZE, || {});
 
-                if let Some(old_texture) = i.normalized_texture.replace((
-                    egui::load::SizedTexture {
-                        id,
-                        size: Vec2::new(WARP_OUTPUT_SIZE.0 as f32, WARP_OUTPUT_SIZE.1 as f32),
-                    },
-                    out,
-                )) {
-                    old_texture.1.destroy();
+                if let Some(old_texture) = i
+                    .normalized_texture
+                    .replace(SharedTexture::from_texture_id(out, id))
+                {
+                    old_texture.wgpu.destroy();
                 }
             }
         }
@@ -162,10 +159,10 @@ fn handle_image(
 
     // Depending on which mode we are in, show original or warped image.
     let texture = match tool {
-        LabelTool::Corner => t.texture.as_ref().expect("loaded texture").0,
+        LabelTool::Corner => t.texture.as_ref().expect("loaded texture").egui,
         LabelTool::BBox => {
             if let Some(t) = &t.normalized_texture {
-                t.0
+                t.egui
             } else {
                 return false;
             }
