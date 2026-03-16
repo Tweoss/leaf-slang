@@ -1,4 +1,5 @@
 pub mod opacity;
+pub mod render;
 pub mod warp;
 
 use eframe::egui_wgpu::{RenderState, wgpu};

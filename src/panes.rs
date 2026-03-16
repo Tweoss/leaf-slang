@@ -1,5 +1,6 @@
 pub mod labeller;
 pub mod overlay;
+pub mod renderer;
 
 use std::{collections::HashMap, fmt::Display};
 
@@ -12,8 +13,9 @@ use crate::{
     panes::{
         labeller::{LabelState, LabelTool, Labels},
         overlay::{Overlay, OverlayState},
+        renderer::RendererState,
     },
-    wgpu::{Custom3d, opacity::OpacityModule, warp::WarpModule},
+    wgpu::{Custom3d, opacity::OpacityModule, render::RenderModule, warp::WarpModule},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy)]
@@ -23,6 +25,7 @@ pub enum Pane {
     Controls,
     Labeller(LabelTool),
     Overlay,
+    Renderer,
 }
 
 impl Display for Pane {
@@ -38,17 +41,19 @@ impl Display for Pane {
                     }
             }
             Pane::Overlay => "Overlay".to_owned(),
+            Pane::Renderer => "Renderer".to_owned(),
         })
     }
 }
 
 impl Pane {
-    pub const ENUM: [Pane; 5] = [
+    pub const ENUM: [Pane; 6] = [
         Pane::Shader,
         Pane::Controls,
         Pane::Labeller(LabelTool::Corner),
         Pane::Labeller(LabelTool::BBox),
         Pane::Overlay,
+        Pane::Renderer,
     ];
 }
 
@@ -58,10 +63,12 @@ pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
         image_pairs: &mut app.image_pairs,
         label_state: &mut app.label_state,
         overlay_state: &mut app.overlay_state,
+        renderer_state: &mut app.renderer_state,
         labels: &mut app.persistent.labels,
         overlays: &mut app.persistent.overlays,
         warp: &mut app.warp_module,
         opacity: &mut app.opacity_module,
+        render: &mut app.render_module,
         frame,
     };
     app.persistent.tree.ui(&mut behavior, ui);
@@ -72,10 +79,12 @@ struct PaneData<'a> {
     image_pairs: &'a mut [ImagePair],
     overlay_state: &'a mut OverlayState,
     label_state: &'a mut LabelState,
+    renderer_state: &'a mut RendererState,
     labels: &'a mut HashMap<ImageID, Labels>,
     overlays: &'a mut HashMap<(String, usize), Overlay>,
     warp: &'a mut WarpModule,
     opacity: &'a mut OpacityModule,
+    render: &'a mut RenderModule,
     frame: &'a mut eframe::Frame,
 }
 
@@ -125,6 +134,13 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
                     self.frame,
                 );
             }
+            Pane::Renderer => renderer::ui(
+                ui,
+                self.frame,
+                self.renderer_state,
+                self.overlay_state,
+                self.render,
+            ),
         }
 
         if drag_started {

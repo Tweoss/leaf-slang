@@ -106,7 +106,7 @@ fn imageMain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
     textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(blackV_0.xyz, 1.0f)));
     var diff_0 : vec3<f32> = (_S12 - blackV_0).xyz;
     var _S16 : f32 = max(max(diff_0.x, diff_0.y), diff_0.z);
-    if(_S16 > 0.5f)
+    if(_S16 > 0.55000001192092896f)
     {
         textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(0.0f)));
         return;

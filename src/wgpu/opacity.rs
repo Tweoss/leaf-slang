@@ -1,7 +1,5 @@
-// Make a thing which warps image. takes a texture, outputs a texture.
-
 use eframe::egui_wgpu::RenderState;
-use wgpu::{Device, ShaderModule, TextureView};
+use wgpu::{Device, ShaderModule};
 
 use crate::panes::overlay::Overlay;
 

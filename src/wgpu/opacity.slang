@@ -64,15 +64,12 @@ void imageMain(uint2 dispatchThreadID: SV_DispatchThreadID)
 	float m = max(max(diff.r, diff.g), diff.b);
 	// Greater than threshoald => must've been (white - black), so
 	// not a petal.
-	float THRESHOLD = 0.5;
+	float THRESHOLD = 0.55;
 	if (m > THRESHOLD) {
 		outputTex.Store(dispatchThreadID, float4(0.0));
 		return;
 	}
 	float4 output = float4(whiteV.rgb, 1.0 - m);
-
-	
-	// float4 output = float4(whiteV.rgb - blackV.rgb, 1.0);
 
 	outputTex.Store(dispatchThreadID, output);
 

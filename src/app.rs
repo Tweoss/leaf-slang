@@ -9,9 +9,12 @@ use crate::{
         self, Pane,
         labeller::{LabelState, LabelTool, Labels},
         overlay::{Overlay, OverlayState},
+        renderer::RendererState,
         tree_ui,
     },
-    wgpu::{Custom3d, opacity::OpacityModule, texture_from_rgba, warp::WarpModule},
+    wgpu::{
+        Custom3d, opacity::OpacityModule, render::RenderModule, texture_from_rgba, warp::WarpModule,
+    },
 };
 
 pub struct App {
@@ -22,8 +25,10 @@ pub struct App {
     pub new_pane_type: Pane,
     pub label_state: LabelState,
     pub overlay_state: OverlayState,
+    pub renderer_state: RendererState,
     pub warp_module: WarpModule,
     pub opacity_module: OpacityModule,
+    pub render_module: RenderModule,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -84,14 +89,16 @@ impl App {
             new_pane_type: Pane::default(),
             label_state: LabelState::default(),
             overlay_state: OverlayState::default(),
+            renderer_state: RendererState::new(render_state),
             warp_module: WarpModule::new(&render_state.device),
             opacity_module: OpacityModule::new(&render_state.device),
+            render_module: RenderModule::new(&render_state.device),
         };
 
         panes::labeller::init(
             &mut out.warp_module,
             &mut out.overlay_state,
-            cc.wgpu_render_state.as_ref().expect("wgpu render state"),
+            render_state,
             &mut out.persistent.labels,
             &mut out.image_pairs,
         );

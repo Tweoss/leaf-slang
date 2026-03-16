@@ -13,7 +13,7 @@ use std::f32;
 
 pub struct OverlayState {
     petal_index: usize,
-    textures: HashMap<(String, usize), ((u32, u32), SharedTexture)>,
+    pub textures: HashMap<(String, usize), ((u32, u32), SharedTexture)>,
     color: Color32,
 }
 
