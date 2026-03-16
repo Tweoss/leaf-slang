@@ -1,13 +1,12 @@
 use eframe::egui_wgpu::RenderState;
 use wgpu::{Device, ShaderModule};
 
-use crate::panes::overlay::Overlay;
-
 use super::*;
 
 const LABEL: &str = "render module";
 
 pub struct RenderModule {
+    combine: ShaderModule,
     shader: ShaderModule,
 }
 
@@ -32,6 +31,12 @@ impl RenderModule {
                     include_str!("../../shader_build/render.wgsl").into(),
                 ),
             }),
+            combine: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(LABEL),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("../../shader_build/combine.wgsl").into(),
+                ),
+            }),
         }
     }
 
@@ -44,6 +49,50 @@ impl RenderModule {
                     .into(),
             ),
         });
+        self.combine = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(LABEL),
+            source: wgpu::ShaderSource::Wgsl(
+                std::fs::read_to_string("shader_build/combine.wgsl")
+                    .unwrap()
+                    .into(),
+            ),
+        });
+    }
+
+    pub fn combine(
+        &self,
+        wgpu_render_state: &RenderState,
+        input: &SharedTexture,
+        target: &mut SharedTexture,
+        offset: (u32, u32),
+        callback: impl FnOnce() + Send + 'static,
+    ) {
+        let device = &wgpu_render_state.device;
+
+        // Pad out.
+        let uniform_buffer = create_buffer_bytes(
+            device,
+            LABEL,
+            bytemuck::bytes_of(&[offset.0, offset.1, 0, 0]),
+        );
+        let bind_group = [
+            view_to_bind_group(&input.wgpu_view, 0),
+            view_to_bind_group(&target.wgpu_view, 1),
+            buffer_to_bind_group(&uniform_buffer, 2),
+        ];
+
+        run(
+            wgpu_render_state,
+            &self.combine,
+            LABEL,
+            &bind_group,
+            (
+                input.wgpu.size().width / 16 + 1,
+                input.wgpu.size().height / 16 + 1,
+                1,
+            ),
+            callback,
+        );
     }
 
     pub fn run(

@@ -1,6 +1,5 @@
 use eframe::{Frame, egui_wgpu::RenderState};
 use egui::{ImageSource, Vec2};
-use wgpu::Device;
 
 use crate::{
     images::SharedTexture,
@@ -57,14 +56,26 @@ pub fn ui(
         let wgpu = create_texture(device, label, (per_row * cell_size.0, rows * cell_size.1));
         let view = texture_to_view(label, &wgpu);
         let id = texture_view_to_egui_id(render_state, &view);
-        renderer_state.big_texture = Some(SharedTexture::from_texture_id(wgpu, view, id));
+        let mut big_texture = SharedTexture::from_texture_id(wgpu, view, id);
+
+        for (r, row) in textures.chunks(per_row as usize).enumerate() {
+            for (c, t) in row.iter().enumerate() {
+                let offset = (0, 0);
+                let offset = (c as u32 * cell_size.0, r as u32 * cell_size.1);
+                // ui.image(ImageSource::Texture(t.egui));
+                render_module.combine(render_state, t, &mut big_texture, offset, || {});
+            }
+        }
+
+        renderer_state.big_texture = Some(big_texture);
+
         rerender = true;
     }
 
     if let Some(big_texture) = &mut renderer_state.big_texture {
-        if rerender {
-            render_module.run(render_state, big_texture, || {});
-        }
+        // if rerender {
+        //     render_module.run(render_state, big_texture, || {});
+        // }
 
         ui.image(ImageSource::Texture(big_texture.egui));
     }
