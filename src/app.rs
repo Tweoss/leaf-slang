@@ -7,7 +7,7 @@ use crate::{
     images::{ImageID, ImagePair},
     panes::{
         Pane,
-        labeller::{LabelState, Labels},
+        labeller::{LabelState, LabelTool, Labels},
         tree_ui,
     },
     wgpu::{Custom3d, texture_from_rgba, warp::WarpModule},
@@ -36,7 +36,11 @@ impl Default for Persistent {
         Self {
             tree: egui_tiles::Tree::new_vertical(
                 "pane-container",
-                vec![Pane::Shader, Pane::Controls, Pane::Labeller],
+                vec![
+                    Pane::Shader,
+                    Pane::Controls,
+                    Pane::Labeller(LabelTool::BBox),
+                ],
             ),
             labels: HashMap::new(),
         }
@@ -103,12 +107,18 @@ impl eframe::App for App {
                 ComboBox::from_label("")
                     .selected_text(format!("{:?}", self.new_pane_type))
                     .show_ui(ui, |ui| {
-                        let pane_types = [Pane::Shader, Pane::Controls, Pane::Labeller];
+                        let pane_types = [
+                            Pane::Shader,
+                            Pane::Controls,
+                            Pane::Labeller(LabelTool::BBox),
+                            Pane::Labeller(LabelTool::Corner),
+                        ];
                         for pane in pane_types {
                             let text = match pane {
                                 Pane::Shader => "Shader",
                                 Pane::Controls => "Controls",
-                                Pane::Labeller => "Labeller",
+                                Pane::Labeller(LabelTool::BBox) => "Label BBox",
+                                Pane::Labeller(LabelTool::Corner) => "Label Corner",
                             };
                             ui.selectable_value(&mut self.new_pane_type, pane, text);
                         }

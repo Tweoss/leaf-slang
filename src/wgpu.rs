@@ -2,10 +2,10 @@ pub mod warp;
 
 use eframe::egui_wgpu::{RenderState, wgpu};
 use egui::{Color32, Rect, Sense, TextureId, Vec2, pos2};
-use image::{RgbImage, RgbaImage};
+use image::RgbaImage;
 use wgpu::{
-    BindGroupEntry, Buffer, CommandEncoderDescriptor, Device, Origin3d, ShaderModule, Texture,
-    TextureAspect, TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
+    BindGroupEntry, Buffer, CommandEncoderDescriptor, Device, ShaderModule, Texture, TextureAspect,
+    TextureUsages, TextureView, TextureViewDescriptor, util::DeviceExt,
 };
 
 pub struct Custom3d {
@@ -178,7 +178,9 @@ pub fn create_buffer(device: &Device, label: &'static str, floats: &[f32]) -> Bu
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(label),
         contents: bytemuck::cast_slice(floats),
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+        usage: wgpu::BufferUsages::COPY_DST
+            | wgpu::BufferUsages::UNIFORM
+            | wgpu::BufferUsages::STORAGE,
     })
 }
 

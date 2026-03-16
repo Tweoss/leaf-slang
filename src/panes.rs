@@ -8,7 +8,7 @@ use egui_tiles::{TileId, Tiles};
 use crate::{
     App,
     images::{ImageID, ImagePair},
-    panes::labeller::{LabelState, Labels},
+    panes::labeller::{LabelState, LabelTool, Labels},
     wgpu::{Custom3d, warp::WarpModule},
 };
 
@@ -17,7 +17,7 @@ pub enum Pane {
     #[default]
     Shader,
     Controls,
-    Labeller,
+    Labeller(LabelTool),
 }
 
 pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
@@ -46,7 +46,12 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
         match pane {
             Pane::Shader => "Shader".into(),
             Pane::Controls => "Controls".into(),
-            Pane::Labeller => "Labeller".into(),
+            Pane::Labeller(tool) => ("Label ".to_owned()
+                + match tool {
+                    LabelTool::Corner => "Corner",
+                    LabelTool::BBox => "BBox",
+                })
+            .into(),
         }
     }
 
@@ -69,13 +74,14 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
             Pane::Controls => {
                 ui.label("controls");
             }
-            Pane::Labeller => labeller::ui(
+            Pane::Labeller(tool) => labeller::ui(
                 ui,
                 self.image_pairs,
                 self.label_state,
                 self.labels,
                 self.warp,
                 self.frame,
+                *tool,
             ),
         }
 

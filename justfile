@@ -1,4 +1,5 @@
 run:
+    just build-shader
     cargo run --release -- data
 
 build-shader:

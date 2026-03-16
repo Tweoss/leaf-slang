@@ -9,34 +9,30 @@ use crate::{
     wgpu::{texture_to_view, warp::WarpModule},
 };
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LabelTool {
+    Corner,
+    BBox,
+}
+
 pub struct LabelState {
     pair_index: usize,
-    tool: Tool,
     corner_index: usize,
     bbox_index: usize,
     bbox_dragging: bool,
     bbox_white_background: bool,
-    hovered: bool,
 }
 
 impl Default for LabelState {
     fn default() -> Self {
         Self {
             pair_index: Default::default(),
-            tool: Tool::Corner,
             corner_index: 0,
             bbox_index: 0,
             bbox_dragging: false,
             bbox_white_background: true,
-            hovered: false,
         }
     }
-}
-
-#[derive(PartialEq)]
-enum Tool {
-    Corner,
-    BBox,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,6 +48,7 @@ pub fn ui(
     labels: &mut HashMap<ImageID, Labels>,
     warp: &mut WarpModule,
     frame: &mut eframe::Frame,
+    tool: LabelTool,
 ) {
     ui.label("Target Pair");
     for (i, p) in image_pairs.iter().enumerate() {
@@ -61,43 +58,25 @@ pub fn ui(
         return;
     };
 
-    ui.horizontal(|ui| {
-        ui.label("Tool");
-        ui.radio_value(&mut label_state.tool, Tool::Corner, "Corner");
-        ui.radio_value(&mut label_state.tool, Tool::BBox, "BBox")
-            .changed();
-
-        ui.label("Corner Index");
-        ui.add(DragValue::new(&mut label_state.corner_index).range(0..=4));
-
-        ui.label("BBox Index");
-        const MAX_PETALS: i32 = 100;
-        ui.add(DragValue::new(&mut label_state.bbox_index).range(0..=MAX_PETALS));
-
-        ui.checkbox(&mut label_state.bbox_white_background, "White Background");
-    });
-    if ui.button("Warp Images").clicked() {
-        let wgpu_render_state = frame.wgpu_render_state().expect("need a wgpu render state");
-        for i in &mut pair.1 {
-            let texture = &i.texture.as_ref().unwrap().1;
-            let view = texture_to_view("warp images", texture);
-            if let Some(l) = labels.get(&i.id) {
-                // Setup warping parameters.
-                let points = l.corners.map(|p| [p.x, p.y]);
-                let (id, out) = warp.run(wgpu_render_state, view, points, (200, 200), || {});
-
-                if let Some(old_texture) = i.normalized_texture.replace((
-                    egui::load::SizedTexture {
-                        id,
-                        size: Vec2::new(200.0, 200.0),
-                    },
-                    out,
-                )) {
-                    old_texture.1.destroy();
-                }
-            }
+    ui.horizontal(|ui| match tool {
+        LabelTool::Corner => {
+            ui.label("Corner Index");
+            ui.add(DragValue::new(&mut label_state.corner_index).range(0..=4));
         }
-    }
+        LabelTool::BBox => {
+            ui.label("BBox Index");
+            const MAX_PETALS: i32 = 100;
+            ui.add(DragValue::new(&mut label_state.bbox_index).range(0..=MAX_PETALS));
+            ui.checkbox(&mut label_state.bbox_white_background, "White Background");
+        }
+    });
+    let mut should_warp = if ui.button("reload shader and warp").clicked() {
+        let wgpu_render_state = frame.wgpu_render_state().expect("need a wgpu render state");
+        warp.reload(&wgpu_render_state.device);
+        true
+    } else {
+        false
+    };
 
     let pointer = ui.ctx().input(|i| {
         (
@@ -114,19 +93,42 @@ pub fn ui(
         .allow_drag(false)
         .show(ui, |plot_ui| {
             for (i, t) in pair.1.iter().enumerate() {
-                handle_image(label_state, labels, pointer, plot_ui, i, t);
+                should_warp |= handle_image(label_state, labels, pointer, plot_ui, i, t, tool);
             }
         })
         .response
         .hovered();
 
-    label_state.hovered = plot_hovered;
-
     // Advance counters.
-    if label_state.hovered && ui.ctx().input(|i| i.key_pressed(egui::Key::Space)) {
-        match label_state.tool {
-            Tool::Corner => label_state.corner_index = (label_state.corner_index + 1) % 4,
-            Tool::BBox => label_state.bbox_index += 1,
+    if plot_hovered && ui.ctx().input(|i| i.key_pressed(egui::Key::Space)) {
+        match tool {
+            LabelTool::Corner => label_state.corner_index = (label_state.corner_index + 1) % 4,
+            LabelTool::BBox => label_state.bbox_index += 1,
+        }
+    }
+
+    if should_warp {
+        let wgpu_render_state = frame.wgpu_render_state().expect("need a wgpu render state");
+        for i in &mut pair.1 {
+            let texture = &i.texture.as_ref().unwrap().1;
+            let view = texture_to_view("warp images", texture);
+            if let Some(l) = labels.get(&i.id) {
+                // Setup warping parameters.
+                let points = l
+                    .corners
+                    .map(|p| [p.x / texture.width() as f32, p.y / texture.height() as f32]);
+                let (id, out) = warp.run(wgpu_render_state, view, points, (200, 200), || {});
+
+                if let Some(old_texture) = i.normalized_texture.replace((
+                    egui::load::SizedTexture {
+                        id,
+                        size: Vec2::new(200.0, 200.0),
+                    },
+                    out,
+                )) {
+                    old_texture.1.destroy();
+                }
+            }
         }
     }
 }
@@ -140,15 +142,27 @@ fn handle_image(
     plot_ui: &mut egui_plot::PlotUi<'_>,
     i: usize,
     t: &crate::images::Image,
-) {
+    tool: LabelTool,
+) -> bool {
+    let to_plot = |c: [f64; 2]| PlotPoint::new(c[0], c[1]);
+    let hovered = pos.is_some_and(|pos| {
+        plot_ui
+            .transform()
+            .rect_from_values(
+                &to_plot(plot_ui.plot_bounds().min()),
+                &to_plot(plot_ui.plot_bounds().max()),
+            )
+            .contains(pos)
+    });
+
     // Depending on which mode we are in, show original or warped image.
-    let texture = match label_state.tool {
-        Tool::Corner => t.texture.as_ref().expect("loaded texture").0,
-        Tool::BBox => {
+    let texture = match tool {
+        LabelTool::Corner => t.texture.as_ref().expect("loaded texture").0,
+        LabelTool::BBox => {
             if let Some(t) = &t.normalized_texture {
                 t.0
             } else {
-                return;
+                return false;
             }
         }
     };
@@ -178,8 +192,8 @@ fn handle_image(
 
     // Draw plot points for this mode.
     if let Some(label) = labels.get(&t.id) {
-        match label_state.tool {
-            Tool::Corner => plot_ui.points(
+        match tool {
+            LabelTool::Corner => plot_ui.points(
                 Points::new(
                     "corners ".to_owned() + &t.id.to_string(),
                     label.corners.map(to_plot).to_vec(),
@@ -188,7 +202,7 @@ fn handle_image(
                 .color(if i == 0 { Color32::RED } else { Color32::BLUE }.gamma_multiply(0.5))
                 .shape(egui_plot::MarkerShape::Cross),
             ),
-            Tool::BBox => {
+            LabelTool::BBox => {
                 for (i, (white_background, bbox)) in label.bounding_boxes.iter().enumerate() {
                     let color = if *white_background {
                         Color32::DARK_RED
@@ -221,19 +235,21 @@ fn handle_image(
     };
 
     // Handle mouse input.
-    if label_state.hovered
-        && let Some(mouse_pos) = pos
-    {
-        handle_mouse(
+    if hovered && let Some(mouse_pos) = pos {
+        let should_warp = handle_mouse(
             label_state,
             labels,
             (mouse_pos, clicked, pressed, released),
             plot_ui,
             t,
-            is_in_bounds,
-            to_image,
+            (is_in_bounds, to_image),
+            tool,
         );
+        if should_warp {
+            return true;
+        }
     }
+    false
 }
 
 fn handle_mouse(
@@ -242,25 +258,26 @@ fn handle_mouse(
     (mouse_pos, clicked, pressed, released): (Pos2, bool, bool, bool),
     plot_ui: &mut egui_plot::PlotUi<'_>,
     t: &crate::images::Image,
-    is_in_bounds: impl Fn(PlotPoint) -> bool,
-    to_image: impl Fn(PlotPoint) -> Pos2,
-) {
+    (is_in_bounds, to_image): (impl Fn(PlotPoint) -> bool, impl Fn(PlotPoint) -> Pos2),
+    tool: LabelTool,
+) -> bool {
     let plot_pos = plot_ui.plot_from_screen(mouse_pos);
     let image_pos = to_image(plot_pos);
     if !is_in_bounds(plot_pos) {
-        return;
+        return false;
     }
     let target = labels.entry(t.id.clone()).or_insert(Labels {
         corners: [Pos2::ZERO; 4],
         bounding_boxes: vec![],
     });
-    match label_state.tool {
-        Tool::Corner => {
+    match tool {
+        LabelTool::Corner => {
             if clicked {
                 target.corners[label_state.corner_index] = image_pos;
+                return true;
             }
         }
-        Tool::BBox => {
+        LabelTool::BBox => {
             if pressed {
                 if label_state.bbox_index >= target.bounding_boxes.len() {
                     target
@@ -280,15 +297,12 @@ fn handle_mouse(
                     corners: [Pos2::ZERO; 4],
                     bounding_boxes: vec![],
                 });
-                match label_state.tool {
-                    Tool::BBox => target.bounding_boxes[label_state.bbox_index].1.max = image_pos,
-                    Tool::Corner => {}
-                }
-
+                target.bounding_boxes[label_state.bbox_index].1.max = image_pos;
                 if released {
                     label_state.bbox_dragging = false;
                 }
             }
         }
     }
+    false
 }
