@@ -37,11 +37,6 @@ fn imageMain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
     var _S9 : vec2<f32> = sample_uv_3_0.xy / vec2<f32>(sample_uv_3_0.z);
     var sample_uv_0 : vec2<f32> = _S9;
     sample_uv_0[i32(1)] = 1.0f - _S9.y;
-    var input_width_0 : f32;
-    var input_height_0 : f32;
-    {var dim = textureDimensions((inputImage_0));((input_width_0)) = f32(dim.x);((input_height_0)) = f32(dim.y);};
-    var _S10 : vec3<i32> = vec3<i32>(vec3<u32>(vec2<u32>(round(sample_uv_0 * vec2<f32>(input_width_0, input_height_0))), u32(0)));
-    textureStore((outputImage_0), (dispatchThreadID_1), (vec4<f32>((textureLoad((inputImage_0), ((_S10)).xy, ((_S10)).z)).xyz, 1.0f)));
     textureStore((outputImage_0), (dispatchThreadID_1), (vec4<f32>(bilinearSample_0(inputImage_0, sample_uv_0).xyz, 1.0f)));
     return;
 }
