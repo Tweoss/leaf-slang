@@ -1,6 +1,6 @@
 use eframe::Frame;
 use eframe::egui_wgpu::RenderState;
-use egui::{Color32, DragValue, ImageSource, Pos2, Rect, Vec2};
+use egui::{Color32, DragValue, Image, ImageSource, Pos2, Rect, Vec2, Widget, color_picker};
 use egui_plot::{Legend, Plot, PlotImage, PlotPoint};
 use serde::{Deserialize, Serialize};
 
@@ -11,10 +11,20 @@ use crate::wgpu::{create_texture, texture_to_view, texture_view_to_egui_id};
 use std::collections::HashMap;
 use std::f32;
 
-#[derive(Default)]
 pub struct OverlayState {
     petal_index: usize,
     textures: HashMap<(String, usize), ((u32, u32), SharedTexture)>,
+    color: Color32,
+}
+
+impl Default for OverlayState {
+    fn default() -> Self {
+        Self {
+            petal_index: Default::default(),
+            textures: Default::default(),
+            color: Color32::WHITE,
+        }
+    }
 }
 
 impl OverlayState {
@@ -193,8 +203,22 @@ pub fn ui(
     ui.label(format!("Black bbox {:?}", black.2));
     ui.label(format!("dangle {} dpos {:?}", overlay.dangle, overlay.dpos));
 
+    ui.label("background color");
+    color_picker::color_edit_button_srgba(
+        ui,
+        &mut overlay_state.color,
+        color_picker::Alpha::Opaque,
+    );
     if let Some(target) = target {
-        ui.image(ImageSource::Texture(target.1.egui));
+        ui.allocate_ui(target.1.egui.size, |ui| {
+            let pos = ui.next_widget_position();
+            checkers::background_checkers(
+                ui.painter(),
+                Rect::from_min_size(pos, target.1.egui.size),
+                overlay_state.color,
+            );
+            Image::new(ImageSource::Texture(target.1.egui)).ui(ui);
+        });
     }
 
     None
@@ -208,4 +232,39 @@ fn calc_rotate_translation(start_angle: f32, dangle: f32, arm_length: f32) -> Ve
             f32::cos(start_angle) - f32::cos(end_angle),
             f32::sin(start_angle) - f32::sin(end_angle),
         )
+}
+
+// Stolen from egui.
+
+mod checkers {
+    use egui::{Color32, Mesh, Painter, Rect, Shape, Vec2, lerp, pos2};
+
+    pub fn background_checkers(painter: &Painter, rect: Rect, color: Color32) {
+        let rect = rect.shrink(0.1); // Small hack to avoid the checkers from peeking through the sides
+        if !rect.is_positive() {
+            return;
+        }
+
+        let dark_color = Color32::from_gray(32);
+        let bright_color = color;
+
+        let checker_size = Vec2::new(rect.width() / 4.0, rect.height() / 2.0);
+        let n = (rect.width() / checker_size.x).round() as u32;
+
+        let mut mesh = Mesh::default();
+        mesh.add_colored_rect(rect, dark_color);
+
+        let mut top = true;
+        for i in 0..n {
+            let x = lerp(rect.left()..=rect.right(), i as f32 / (n as f32));
+            let small_rect = if top {
+                Rect::from_min_size(pos2(x, rect.top()), checker_size)
+            } else {
+                Rect::from_min_size(pos2(x, rect.center().y), checker_size)
+            };
+            mesh.add_colored_rect(small_rect, bright_color);
+            top = !top;
+        }
+        painter.add(Shape::mesh(mesh));
+    }
 }

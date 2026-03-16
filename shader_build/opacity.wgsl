@@ -69,35 +69,49 @@ fn getDim_1() -> vec2<u32>
 fn imageMain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
 {
     var dispatchThreadID_1 : vec2<u32> = dispatchThreadID_0.xy;
+    var _S9 : vec2<u32> = getDim_1();
     var whiteDim_0 : vec2<u32> = getDim_0(inputWhite_0);
     var blackDim_0 : vec2<u32> = getDim_0(inputBlack_0);
-    if((any((dispatchThreadID_1 >= (getDim_1())))))
+    if((any((dispatchThreadID_1 >= _S9))))
     {
         return;
     }
-    var _S9 : vec2<i32> = vec2<i32>(dispatchThreadID_1 + vec2<u32>(globalParams_0.whiteBboxOffset_0));
-    var _S10 : vec3<i32> = vec3<i32>(vec3<u32>(flipY_0(whiteDim_0, vec2<u32>(_S9)), u32(0)));
-    var _S11 : vec4<f32> = (textureLoad((inputWhite_0), ((_S10)).xy, ((_S10)).z));
-    var blackCoordf_0 : vec2<f32> = (((vec2<f32>(_S9) - globalParams_0.blackTranslation_0) * (mat2x2<f32>(vec2<f32>(cos(globalParams_0.blackRotation_0), - sin(globalParams_0.blackRotation_0)), vec2<f32>(sin(globalParams_0.blackRotation_0), cos(globalParams_0.blackRotation_0))))));
+    var _S10 : vec2<i32> = vec2<i32>(flipY_0(_S9, dispatchThreadID_1) + vec2<u32>(globalParams_0.whiteBboxOffset_0));
+    var _S11 : vec3<i32> = vec3<i32>(vec3<u32>(flipY_0(whiteDim_0, vec2<u32>(_S10)), u32(0)));
+    var _S12 : vec4<f32> = (textureLoad((inputWhite_0), ((_S11)).xy, ((_S11)).z));
+    var _S13 : vec2<f32> = vec2<f32>(blackDim_0);
+    var center_0 : vec2<f32> = _S13 / vec2<f32>(2.0f);
+    var blackCoordf_0 : vec2<f32> = (((vec2<f32>(_S10) - globalParams_0.blackTranslation_0 - center_0) * (mat2x2<f32>(vec2<f32>(cos(globalParams_0.blackRotation_0), sin(globalParams_0.blackRotation_0)), vec2<f32>(- sin(globalParams_0.blackRotation_0), cos(globalParams_0.blackRotation_0)))))) + center_0;
     if(!is_in_bounds_0(blackDim_0, blackCoordf_0))
     {
         textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(0.0f)));
     }
     var blackMax_0 : vec2<f32> = vec2<f32>(globalParams_0.blackBbox_0[i32(2)], globalParams_0.blackBbox_0[i32(3)]);
-    var _S12 : bool;
+    var _S14 : bool;
     if((any((blackCoordf_0 < vec2<f32>(globalParams_0.blackBbox_0[i32(0)], globalParams_0.blackBbox_0[i32(1)])))))
     {
-        _S12 = true;
+        _S14 = true;
     }
     else
     {
-        _S12 = (any((blackCoordf_0 > blackMax_0)));
+        _S14 = (any((blackCoordf_0 > blackMax_0)));
     }
-    if(_S12)
+    if(_S14)
     {
         textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(0.0f)));
     }
-    textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(_S11.xyz - bilinearSample_0(inputBlack_0, flipY_1(blackDim_0, blackCoordf_0) / vec2<f32>(blackDim_0)).xyz, 1.0f)));
+    var blackV_0 : vec4<f32> = bilinearSample_0(inputBlack_0, flipY_1(blackDim_0, blackCoordf_0) / _S13);
+    var _S15 : vec3<f32> = _S12.xyz;
+    textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(_S15, 1.0f)));
+    textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(blackV_0.xyz, 1.0f)));
+    var diff_0 : vec3<f32> = (_S12 - blackV_0).xyz;
+    var _S16 : f32 = max(max(diff_0.x, diff_0.y), diff_0.z);
+    if(_S16 > 0.5f)
+    {
+        textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(0.0f)));
+        return;
+    }
+    textureStore((outputTex_0), (dispatchThreadID_1), (vec4<f32>(_S15, 1.0f - _S16)));
     return;
 }
 

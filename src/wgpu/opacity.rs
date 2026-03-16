@@ -20,8 +20,8 @@ pub struct Uniforms {
     _padding: [u32; 2],
     black_bbox: [f32; 4],
     black_translation: [f32; 2],
-    _padding1: [u32; 2],
     black_rotation: f32,
+    _padding1: [u32; 1],
 }
 
 impl OpacityModule {
@@ -68,8 +68,8 @@ impl OpacityModule {
                 black_bbox.max.y,
             ],
             black_translation: [overlay.dpos.x, overlay.dpos.y],
-            _padding1: [0; 2],
             black_rotation: overlay.dangle,
+            _padding1: [0; 1],
         };
         let uniforms = bytemuck::bytes_of(&uniforms);
 
