@@ -1,6 +1,7 @@
 pub mod labeller;
+pub mod overlay;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use egui::RichText;
 use egui_tiles::{TileId, Tiles};
@@ -8,7 +9,10 @@ use egui_tiles::{TileId, Tiles};
 use crate::{
     App,
     images::{ImageID, ImagePair},
-    panes::labeller::{LabelState, LabelTool, Labels},
+    panes::{
+        labeller::{LabelState, LabelTool, Labels},
+        overlay::{Overlay, OverlayState},
+    },
     wgpu::{Custom3d, warp::WarpModule},
 };
 
@@ -18,6 +22,34 @@ pub enum Pane {
     Shader,
     Controls,
     Labeller(LabelTool),
+    Overlay,
+}
+
+impl Display for Pane {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&match self {
+            Pane::Shader => "Shader".to_owned(),
+            Pane::Controls => "Controls".to_owned(),
+            Pane::Labeller(tool) => {
+                "Label ".to_owned()
+                    + match tool {
+                        LabelTool::Corner => "Corner",
+                        LabelTool::BBox => "BBox",
+                    }
+            }
+            Pane::Overlay => "Overlay".to_owned(),
+        })
+    }
+}
+
+impl Pane {
+    pub const ENUM: [Pane; 5] = [
+        Pane::Shader,
+        Pane::Controls,
+        Pane::Labeller(LabelTool::Corner),
+        Pane::Labeller(LabelTool::BBox),
+        Pane::Overlay,
+    ];
 }
 
 pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
@@ -25,7 +57,9 @@ pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
         custom_3d: &mut app.custom_3d,
         image_pairs: &mut app.image_pairs,
         label_state: &mut app.label_state,
+        overlay_state: &mut app.overlay_state,
         labels: &mut app.persistent.labels,
+        overlays: &mut app.persistent.overlays,
         warp: &mut app.warp_module,
         frame,
     };
@@ -35,24 +69,17 @@ pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
 struct PaneData<'a> {
     custom_3d: &'a mut Custom3d,
     image_pairs: &'a mut [ImagePair],
+    overlay_state: &'a mut OverlayState,
     label_state: &'a mut LabelState,
     labels: &'a mut HashMap<ImageID, Labels>,
+    overlays: &'a mut HashMap<String, Overlay>,
     warp: &'a mut WarpModule,
     frame: &'a mut eframe::Frame,
 }
 
 impl egui_tiles::Behavior<Pane> for PaneData<'_> {
     fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
-        match pane {
-            Pane::Shader => "Shader".into(),
-            Pane::Controls => "Controls".into(),
-            Pane::Labeller(tool) => ("Label ".to_owned()
-                + match tool {
-                    LabelTool::Corner => "Corner",
-                    LabelTool::BBox => "BBox",
-                })
-            .into(),
-        }
+        pane.to_string().into()
     }
 
     fn pane_ui(
@@ -83,6 +110,16 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
                 self.frame,
                 *tool,
             ),
+            Pane::Overlay => {
+                overlay::ui(
+                    ui,
+                    self.image_pairs,
+                    self.overlay_state,
+                    self.label_state,
+                    self.labels,
+                    self.overlays,
+                );
+            }
         }
 
         if drag_started {

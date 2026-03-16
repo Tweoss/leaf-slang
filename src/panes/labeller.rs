@@ -9,6 +9,10 @@ use crate::{
     wgpu::{texture_to_view, warp::WarpModule},
 };
 
+// 8.5 x 11
+const SCALE: u32 = 5;
+const WARP_OUTPUT_SIZE: (u32, u32) = (85 * SCALE, 110 * SCALE);
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LabelTool {
     Corner,
@@ -16,11 +20,11 @@ pub enum LabelTool {
 }
 
 pub struct LabelState {
-    pair_index: usize,
-    corner_index: usize,
-    bbox_index: usize,
-    bbox_dragging: bool,
-    bbox_white_background: bool,
+    pub pair_index: usize,
+    pub corner_index: usize,
+    pub bbox_index: usize,
+    pub bbox_dragging: bool,
+    pub bbox_white_background: bool,
 }
 
 impl Default for LabelState {
@@ -37,8 +41,9 @@ impl Default for LabelState {
 
 #[derive(Serialize, Deserialize)]
 pub struct Labels {
-    corners: [Pos2; 4],
-    bounding_boxes: Vec<(bool, Rect)>,
+    pub corners: [Pos2; 4],
+    // White background or not.
+    pub bounding_boxes: Vec<(bool, Rect)>,
 }
 
 pub fn ui(
@@ -117,12 +122,12 @@ pub fn ui(
                 let points = l
                     .corners
                     .map(|p| [p.x / texture.width() as f32, p.y / texture.height() as f32]);
-                let (id, out) = warp.run(wgpu_render_state, view, points, (200, 200), || {});
+                let (id, out) = warp.run(wgpu_render_state, view, points, WARP_OUTPUT_SIZE, || {});
 
                 if let Some(old_texture) = i.normalized_texture.replace((
                     egui::load::SizedTexture {
                         id,
-                        size: Vec2::new(200.0, 200.0),
+                        size: Vec2::new(WARP_OUTPUT_SIZE.0 as f32, WARP_OUTPUT_SIZE.1 as f32),
                     },
                     out,
                 )) {
@@ -210,20 +215,7 @@ fn handle_image(
                         Color32::LIGHT_RED
                     }
                     .gamma_multiply(0.8);
-                    plot_ui.polygon(
-                        Polygon::new(
-                            format!("bbox {i} {}", t.id),
-                            [
-                                bbox.left_top(),
-                                bbox.right_top(),
-                                bbox.right_bottom(),
-                                bbox.left_bottom(),
-                            ]
-                            .map(to_plot)
-                            .to_vec(),
-                        )
-                        .stroke(Stroke::new(1.0, color)),
-                    );
+                    plot_bbox(plot_ui, t, to_plot, i, bbox, color);
                 }
             }
         };
@@ -250,6 +242,30 @@ fn handle_image(
         }
     }
     false
+}
+
+pub fn plot_bbox(
+    plot_ui: &mut egui_plot::PlotUi<'_>,
+    t: &crate::images::Image,
+    to_plot: impl Fn(Pos2) -> [f64; 2],
+    i: usize,
+    bbox: &Rect,
+    color: Color32,
+) {
+    plot_ui.polygon(
+        Polygon::new(
+            format!("bbox {i} {}", t.id),
+            [
+                bbox.left_top(),
+                bbox.right_top(),
+                bbox.right_bottom(),
+                bbox.left_bottom(),
+            ]
+            .map(to_plot)
+            .to_vec(),
+        )
+        .stroke(Stroke::new(1.0, color)),
+    );
 }
 
 fn handle_mouse(
@@ -300,6 +316,13 @@ fn handle_mouse(
                 target.bounding_boxes[label_state.bbox_index].1.max = image_pos;
                 if released {
                     label_state.bbox_dragging = false;
+                    // Make sure even if we were dragging the wrong way
+                    // that the min and max are set correctly.
+                    let rect = &mut target.bounding_boxes[label_state.bbox_index].1;
+                    let min = rect.min;
+                    let max = rect.max;
+                    rect.extend_with(min);
+                    rect.extend_with(max);
                 }
             }
         }

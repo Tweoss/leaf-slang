@@ -104,7 +104,7 @@ impl WarpModule {
             &self.shader,
             LABEL,
             &bind_group,
-            (16, 16, 1),
+            (output_size.0, output_size.1, 1),
             callback,
         );
 

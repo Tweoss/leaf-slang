@@ -8,6 +8,7 @@ use crate::{
     panes::{
         Pane,
         labeller::{LabelState, LabelTool, Labels},
+        overlay::{Overlay, OverlayState},
         tree_ui,
     },
     wgpu::{Custom3d, texture_from_rgba, warp::WarpModule},
@@ -20,6 +21,7 @@ pub struct App {
     pub image_pairs: Vec<ImagePair>,
     pub new_pane_type: Pane,
     pub label_state: LabelState,
+    pub overlay_state: OverlayState,
     pub warp_module: WarpModule,
 }
 
@@ -29,6 +31,7 @@ pub struct App {
 pub struct Persistent {
     pub tree: egui_tiles::Tree<Pane>,
     pub labels: HashMap<ImageID, Labels>,
+    pub overlays: HashMap<String, Overlay>,
 }
 
 impl Default for Persistent {
@@ -43,6 +46,7 @@ impl Default for Persistent {
                 ],
             ),
             labels: HashMap::new(),
+            overlays: HashMap::new(),
         }
     }
 }
@@ -87,6 +91,7 @@ impl App {
             image_pairs,
             new_pane_type: Pane::default(),
             label_state: LabelState::default(),
+            overlay_state: OverlayState::default(),
             warp_module: WarpModule::new(&render_state.device),
         }
     }
@@ -107,19 +112,8 @@ impl eframe::App for App {
                 ComboBox::from_label("")
                     .selected_text(format!("{:?}", self.new_pane_type))
                     .show_ui(ui, |ui| {
-                        let pane_types = [
-                            Pane::Shader,
-                            Pane::Controls,
-                            Pane::Labeller(LabelTool::BBox),
-                            Pane::Labeller(LabelTool::Corner),
-                        ];
-                        for pane in pane_types {
-                            let text = match pane {
-                                Pane::Shader => "Shader",
-                                Pane::Controls => "Controls",
-                                Pane::Labeller(LabelTool::BBox) => "Label BBox",
-                                Pane::Labeller(LabelTool::Corner) => "Label Corner",
-                            };
+                        for pane in Pane::ENUM {
+                            let text = pane.to_string();
                             ui.selectable_value(&mut self.new_pane_type, pane, text);
                         }
                     });
