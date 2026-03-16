@@ -43,7 +43,7 @@ impl WarpModule {
         quad_points: [[f32; 2]; 4],
         output_size: (u32, u32),
         callback: impl FnOnce() + Send + 'static,
-    ) -> (TextureId, Texture) {
+    ) -> (TextureId, Texture, TextureView) {
         let device = &wgpu_render_state.device;
         let out = create_texture(device, LABEL, output_size);
         let view = texture_to_view(LABEL, &out);
@@ -78,7 +78,7 @@ impl WarpModule {
         );
         let desired = nalgebra::OVector::<f32, U8>::from_iterator((0..4).flat_map(|i| q[i]));
         let Some(inv) = equations.try_inverse() else {
-            return (id, out);
+            return (id, out, view);
         };
         let coefficients = inv * desired;
         // Calculate coords in source image from uv in dest image.
@@ -92,7 +92,7 @@ impl WarpModule {
         .try_inverse()
         .unwrap();
 
-        let uniform_buffer = create_buffer(device, LABEL, forward_coeffs.as_slice());
+        let uniform_buffer = create_buffer_floats(device, LABEL, forward_coeffs.as_slice());
         let bind_group = [
             view_to_bind_group(&input, 0),
             view_to_bind_group(&view, 1),
@@ -104,10 +104,10 @@ impl WarpModule {
             &self.shader,
             LABEL,
             &bind_group,
-            (output_size.0, output_size.1, 1),
+            (output_size.0 / 16 + 1, output_size.1 / 16 + 1, 1),
             callback,
         );
 
-        (id, out)
+        (id, out, view)
     }
 }

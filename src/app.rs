@@ -6,12 +6,12 @@ use image::{DynamicImage, RgbaImage};
 use crate::{
     images::{ImageID, ImagePair},
     panes::{
-        Pane,
+        self, Pane,
         labeller::{LabelState, LabelTool, Labels},
         overlay::{Overlay, OverlayState},
         tree_ui,
     },
-    wgpu::{Custom3d, texture_from_rgba, warp::WarpModule},
+    wgpu::{Custom3d, opacity::OpacityModule, texture_from_rgba, warp::WarpModule},
 };
 
 pub struct App {
@@ -23,6 +23,7 @@ pub struct App {
     pub label_state: LabelState,
     pub overlay_state: OverlayState,
     pub warp_module: WarpModule,
+    pub opacity_module: OpacityModule,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -76,7 +77,7 @@ impl App {
                 ));
             }
         }
-        Self {
+        let mut out = Self {
             custom_3d: Custom3d::new(cc).expect("could not construct shader view"),
             persistent: config,
             image_pairs,
@@ -84,7 +85,18 @@ impl App {
             label_state: LabelState::default(),
             overlay_state: OverlayState::default(),
             warp_module: WarpModule::new(&render_state.device),
-        }
+            opacity_module: OpacityModule::new(&render_state.device),
+        };
+
+        panes::labeller::init(
+            &mut out.warp_module,
+            &mut out.overlay_state,
+            cc.wgpu_render_state.as_ref().expect("wgpu render state"),
+            &mut out.persistent.labels,
+            &mut out.image_pairs,
+        );
+
+        out
     }
 }
 

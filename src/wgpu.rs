@@ -1,3 +1,4 @@
+pub mod opacity;
 pub mod warp;
 
 use eframe::egui_wgpu::{RenderState, wgpu};
@@ -32,7 +33,7 @@ impl Custom3d {
         let texture_view = texture_to_view(label, &texture);
         let texture_id = texture_view_to_egui_id(wgpu_render_state, &texture_view);
         let floats = [0.0_f32; 4];
-        let uniform_buffer = create_buffer(device, label, &floats);
+        let uniform_buffer = create_buffer_floats(device, label, &floats);
 
         let bind_group = [
             view_to_bind_group(&texture_view, 0),
@@ -94,6 +95,7 @@ pub fn texture_from_rgba(
         label: Some(label),
         view_formats: &[],
     });
+    let view = texture_to_view(label, &texture);
     wgpu_render_state.queue.write_texture(
         wgpu::TexelCopyTextureInfoBase {
             texture: &texture,
@@ -116,7 +118,7 @@ pub fn texture_from_rgba(
         wgpu::FilterMode::Linear,
     );
 
-    SharedTexture::from_texture_id(texture, id)
+    SharedTexture::from_texture_id(texture, view, id)
 }
 
 pub fn create_texture(
@@ -177,10 +179,20 @@ pub fn texture_view_to_egui_id(wgpu_render_state: &RenderState, view: &TextureVi
 
 /// # Warning
 /// Ensure floats is aligned properly.
-pub fn create_buffer(device: &Device, label: &'static str, floats: &[f32]) -> Buffer {
+pub fn create_buffer_floats(device: &Device, label: &'static str, floats: &[f32]) -> Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(label),
         contents: bytemuck::cast_slice(floats),
+        usage: wgpu::BufferUsages::COPY_DST
+            | wgpu::BufferUsages::UNIFORM
+            | wgpu::BufferUsages::STORAGE,
+    })
+}
+
+pub fn create_buffer_bytes(device: &Device, label: &'static str, bytes: &[u8]) -> Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        contents: bytes,
         usage: wgpu::BufferUsages::COPY_DST
             | wgpu::BufferUsages::UNIFORM
             | wgpu::BufferUsages::STORAGE,

@@ -13,7 +13,7 @@ use crate::{
         labeller::{LabelState, LabelTool, Labels},
         overlay::{Overlay, OverlayState},
     },
-    wgpu::{Custom3d, warp::WarpModule},
+    wgpu::{Custom3d, opacity::OpacityModule, warp::WarpModule},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy)]
@@ -61,6 +61,7 @@ pub fn tree_ui(ui: &mut egui::Ui, app: &mut App, frame: &mut eframe::Frame) {
         labels: &mut app.persistent.labels,
         overlays: &mut app.persistent.overlays,
         warp: &mut app.warp_module,
+        opacity: &mut app.opacity_module,
         frame,
     };
     app.persistent.tree.ui(&mut behavior, ui);
@@ -74,6 +75,7 @@ struct PaneData<'a> {
     labels: &'a mut HashMap<ImageID, Labels>,
     overlays: &'a mut HashMap<(String, usize), Overlay>,
     warp: &'a mut WarpModule,
+    opacity: &'a mut OpacityModule,
     frame: &'a mut eframe::Frame,
 }
 
@@ -109,15 +111,18 @@ impl egui_tiles::Behavior<Pane> for PaneData<'_> {
                 self.warp,
                 self.frame,
                 *tool,
+                self.overlay_state,
             ),
             Pane::Overlay => {
                 overlay::ui(
                     ui,
+                    self.opacity,
                     self.image_pairs,
                     self.overlay_state,
                     self.label_state,
                     self.labels,
                     self.overlays,
+                    self.frame,
                 );
             }
         }

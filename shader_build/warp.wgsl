@@ -32,6 +32,10 @@ fn imageMain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
     var width_1 : f32;
     var height_1 : f32;
     {var dim = textureDimensions((outputImage_0));((width_1)) = f32(dim.x);((height_1)) = f32(dim.y);};
+    if((any((vec2<f32>(dispatchThreadID_1) >= vec2<f32>(width_1, height_1)))))
+    {
+        return;
+    }
     var uv_1 : vec2<f32> = vec2<f32>(dispatchThreadID_1.xy) / vec2<f32>(width_1, height_1);
     var sample_uv_3_0 : vec3<f32> = (((vec3<f32>(vec2<f32>(uv_1.x, 1.0f - uv_1.y), 1.0f)) * (mat3x3<f32>(vec3<f32>(quad_points_0[i32(0)], quad_points_0[i32(3)], quad_points_0[i32(6)]), vec3<f32>(quad_points_0[i32(1)], quad_points_0[i32(4)], quad_points_0[i32(7)]), vec3<f32>(quad_points_0[i32(2)], quad_points_0[i32(5)], quad_points_0[i32(8)])))));
     var _S9 : vec2<f32> = sample_uv_3_0.xy / vec2<f32>(sample_uv_3_0.z);

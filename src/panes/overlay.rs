@@ -1,30 +1,58 @@
-use egui::{Color32, DragValue, Pos2, Vec2};
+use eframe::Frame;
+use eframe::egui_wgpu::RenderState;
+use egui::{Color32, DragValue, ImageSource, Pos2, Rect, Vec2};
 use egui_plot::{Legend, Plot, PlotImage, PlotPoint};
 use serde::{Deserialize, Serialize};
 
-use crate::images::{ImageID, ImagePair};
+use crate::images::{ImageID, ImagePair, SharedTexture};
 use crate::panes::labeller::{LabelState, Labels, plot_bbox};
+use crate::wgpu::opacity::OpacityModule;
+use crate::wgpu::{create_texture, texture_to_view, texture_view_to_egui_id};
 use std::collections::HashMap;
 use std::f32;
 
 #[derive(Default)]
 pub struct OverlayState {
     petal_index: usize,
+    textures: HashMap<(String, usize), ((u32, u32), SharedTexture)>,
+}
+
+impl OverlayState {
+    pub fn set_dim(&mut self, render_state: &RenderState, target: (String, usize), dim: Rect) {
+        if let Some((_, old)) = self.textures.remove(&target) {
+            old.destroy(render_state);
+        }
+
+        let offset = (dim.min.x.floor() as u32, dim.min.y.floor() as u32);
+        let pixel_dim = (
+            dim.max.x.floor() as u32 - offset.0,
+            dim.max.y.floor() as u32 - offset.1,
+        );
+        let label = "overlay texture";
+        let texture = create_texture(&render_state.device, label, pixel_dim);
+        let view = texture_to_view(label, &texture);
+        let id = texture_view_to_egui_id(render_state, &view);
+        let new_texture = SharedTexture::from_texture_id(texture, view, id);
+        self.textures.insert(target, (offset, new_texture));
+    }
 }
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct Overlay {
-    dpos: Vec2,
-    dangle: f32,
+    pub dpos: Vec2,
+    pub dangle: f32,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ui(
     ui: &mut egui::Ui,
+    opacity_module: &mut OpacityModule,
     image_pairs: &[ImagePair],
     overlay_state: &mut OverlayState,
     label_state: &LabelState,
     labels: &HashMap<ImageID, Labels>,
     overlays: &mut HashMap<(String, usize), Overlay>,
+    frame: &mut Frame,
 ) -> Option<()> {
     ui.heading("Overlay");
 
@@ -47,6 +75,10 @@ pub fn ui(
     if overlay_state.petal_index >= petal_count {
         ui.label("Petal count lower than index");
         return None;
+    }
+
+    if ui.button("Reload shader").clicked() {
+        opacity_module.reload(&frame.wgpu_render_state().expect("wgpu state").device);
     }
 
     let mut iter = images.iter().map(|i| (i, labels.get(&i.id).unwrap()));
@@ -111,6 +143,9 @@ pub fn ui(
     let transform = plot.inner;
     let plot_hovered = plot.response.hovered();
 
+    let mut target = overlay_state
+        .textures
+        .get_mut(&(white.3.id.directory.clone(), overlay_state.petal_index));
     if plot_hovered {
         let scale = transform.dvalue_dpos();
         let (delta, shift, space) = ui.ctx().input(|i| {
@@ -135,6 +170,18 @@ pub fn ui(
         if space {
             overlay.dpos += delta;
         }
+        if delta != Vec2::ZERO
+            && let Some(target) = &mut target
+        {
+            opacity_module.run(
+                frame.wgpu_render_state().expect("wgpu context"),
+                target.0,
+                black.2,
+                (&mut target.1, white.0, black.0),
+                overlay,
+                || {},
+            );
+        }
 
         if ui.ctx().input(|i| i.key_pressed(egui::Key::S)) {
             overlay_state.petal_index = (overlay_state.petal_index + 1) % petal_count;
@@ -145,6 +192,10 @@ pub fn ui(
     ui.label(format!("White bbox {:?}", white.2));
     ui.label(format!("Black bbox {:?}", black.2));
     ui.label(format!("dangle {} dpos {:?}", overlay.dangle, overlay.dpos));
+
+    if let Some(target) = target {
+        ui.image(ImageSource::Texture(target.1.egui));
+    }
 
     None
 }

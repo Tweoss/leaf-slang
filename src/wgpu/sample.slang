@@ -20,3 +20,28 @@ float4 bilinearSample(Texture2D<float4> input, float2 uv) {
   return (v11.scale(w.x) + v01.scale(wi.x)).scale(w.y) + (v10.scale(w.x) + v00.scale(wi.x)).scale(wi.y);
 }
 
+uint2 getDim(WTexture2D<float4> input) {
+  uint width;
+  uint height;
+  input.GetDimensions(width, height);
+  return uint2(width, height);
+}
+
+uint2 getDim(Texture2D<float4> input) {
+  uint width;
+  uint height;
+  input.GetDimensions(width, height);
+  return uint2(width, height);
+}
+
+uint2 flipY(uint2 bounds, uint2 point) {
+  return uint2(point.x, bounds.y - point.y - 1);
+}
+
+float2 flipY(uint2 bounds, float2 point) {
+  return float2(point.x, bounds.y - point.y - 1);
+}
+
+bool is_in_bounds(uint2 bounds, float2 point) {
+  return all(point < bounds);
+}

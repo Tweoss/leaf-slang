@@ -22,6 +22,11 @@ void imageMain(uint2 dispatchThreadID: SV_DispatchThreadID)
 	float height;
 	outputImage.GetDimensions(width, height);
 
+	// Bounds check.
+	if (any(dispatchThreadID >= float2(width, height))) {
+		return;
+	}
+
 	vec2 uv = dispatchThreadID.xy / vec2(width, height);
 	// Flip output image.
 	// vec2 img_uv = vec2(uv.x,  uv.y);
