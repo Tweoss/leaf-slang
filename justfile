@@ -10,4 +10,4 @@ build-shader:
     slangc src/wgpu/combine.slang  -target wgsl -o shader_build/combine.wgsl
 watch-shader:
     #!/usr/bin/env nu
-    watch --debounce-ms 300 src/wgpu/combine.slang {try {just build-shader} }
+    watch --debounce-ms 300 src/wgpu/render.slang {try {just build-shader} }

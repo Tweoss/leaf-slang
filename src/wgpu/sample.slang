@@ -20,6 +20,13 @@ float4 bilinearSample(Texture2D<float4> input, float2 uv) {
   return (v11.scale(w.x) + v01.scale(wi.x)).scale(w.y) + (v10.scale(w.x) + v00.scale(wi.x)).scale(wi.y);
 }
 
+float4 bilinearSampleRange(Texture2D<float4> input, uint2 offset, uint2 size, float2 uv) {
+  float width;
+  float height;
+  input.GetDimensions(width, height);
+  return bilinearSample(input, (float2(offset) + uv * float2(size)) / float2(width, height));
+}
+
 uint2 getDim(WTexture2D<float4> input) {
   uint width;
   uint height;

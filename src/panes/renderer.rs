@@ -1,16 +1,22 @@
 use eframe::{Frame, egui_wgpu::RenderState};
-use egui::{ImageSource, Vec2};
+use egui::{DragValue, ImageSource, Vec2, Widget};
 
 use crate::{
     images::SharedTexture,
     panes::overlay::OverlayState,
-    wgpu::{create_texture, render::RenderModule, texture_to_view, texture_view_to_egui_id},
+    wgpu::{
+        create_texture,
+        render::{Petal, RenderModule, Uniforms},
+        texture_to_view, texture_view_to_egui_id,
+    },
 };
 
 pub struct RendererState {
     big_texture: Option<SharedTexture>,
     cell_size: (u32, u32),
     output_texture: Option<SharedTexture>,
+    textures: Vec<((u32, u32), Vec2)>,
+    slider_value: f32,
 }
 
 impl RendererState {
@@ -19,6 +25,8 @@ impl RendererState {
             big_texture: None,
             cell_size: (1, 1),
             output_texture: None,
+            textures: vec![],
+            slider_value: -1.0,
         }
     }
 }
@@ -60,10 +68,9 @@ pub fn ui(
 
         for (r, row) in textures.chunks(per_row as usize).enumerate() {
             for (c, t) in row.iter().enumerate() {
-                let offset = (0, 0);
                 let offset = (c as u32 * cell_size.0, r as u32 * cell_size.1);
-                // ui.image(ImageSource::Texture(t.egui));
                 render_module.combine(render_state, t, &mut big_texture, offset, || {});
+                renderer_state.textures.push((offset, t.egui.size));
             }
         }
 
@@ -72,11 +79,55 @@ pub fn ui(
         rerender = true;
     }
 
-    if let Some(big_texture) = &mut renderer_state.big_texture {
-        // if rerender {
-        //     render_module.run(render_state, big_texture, || {});
-        // }
+    if ui.button("reload").clicked() {
+        render_module.reload(&render_state.device);
+    }
 
+    if let Some(big_texture) = &mut renderer_state.big_texture {
         ui.image(ImageSource::Texture(big_texture.egui));
+
+        rerender |= DragValue::new(&mut renderer_state.slider_value)
+            .ui(ui)
+            .changed();
+
+        let output = renderer_state.output_texture.get_or_insert_with(|| {
+            let device = &render_state.device;
+            let label = "renderer";
+            let render_size = (300, 300);
+            let wgpu = create_texture(device, label, render_size);
+            let view = texture_to_view(label, &wgpu);
+            let id = texture_view_to_egui_id(render_state, &view);
+            SharedTexture::from_texture_id(wgpu, view, id)
+        });
+
+        if rerender {
+            let first_size = dbg!(renderer_state.textures[0].1);
+            let petals = [
+                Petal::new(
+                    [0.0, 0.0, renderer_state.slider_value],
+                    [-1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0, 0],
+                    [first_size.x as u32, first_size.y as u32],
+                ),
+                Petal::new(
+                    [1.0, 1.0, -5.0],
+                    [-1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0, 0],
+                    [first_size.x as u32, first_size.y as u32],
+                ),
+            ];
+            render_module.run(
+                render_state,
+                big_texture,
+                output,
+                &petals,
+                Uniforms::new(petals.len() as u32, renderer_state.cell_size.into()),
+                || {},
+            );
+        }
+
+        ui.image(ImageSource::Texture(output.egui));
     }
 }

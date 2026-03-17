@@ -10,17 +10,56 @@ pub struct RenderModule {
     shader: ShaderModule,
 }
 
-// #[repr(C)]
-// #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-// pub struct Uniforms {
-//     white_bbox_offset: [u32; 2],
-//     _padding: [u32; 2],
-//     black_bbox: [f32; 4],
-//     black_translation: [f32; 2],
-//     black_rotation: f32,
-//     _padding1: [u32; 1],
-// }
-//
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Petal {
+    pos: [f32; 3],
+    _p0: u32,
+    xaxis: [f32; 3],
+    _p1: u32,
+    yaxis: [f32; 3],
+    _p2: u32,
+    texture_offset: [u32; 2],
+    texture_size: [u32; 2],
+}
+impl Petal {
+    pub fn new(
+        pos: [f32; 3],
+        xaxis: [f32; 3],
+        yaxis: [f32; 3],
+        texture_offset: [u32; 2],
+        texture_size: [u32; 2],
+    ) -> Self {
+        Self {
+            pos,
+            _p0: 0,
+            xaxis,
+            _p1: 0,
+            yaxis,
+            _p2: 0,
+            texture_offset,
+            texture_size,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Uniforms {
+    petal_count: u32,
+    _p0: [u32; 3],
+    cell_size: [u32; 2],
+}
+
+impl Uniforms {
+    pub fn new(petal_count: u32, cell_size: [u32; 2]) -> Self {
+        Self {
+            petal_count,
+            _p0: [0; 3],
+            cell_size,
+        }
+    }
+}
 
 impl RenderModule {
     pub fn new(device: &Device) -> Self {
@@ -98,17 +137,22 @@ impl RenderModule {
     pub fn run(
         &self,
         wgpu_render_state: &RenderState,
+        atlas: &SharedTexture,
         target: &mut SharedTexture,
+        petals: &[Petal],
+        uniforms: Uniforms,
         callback: impl FnOnce() + Send + 'static,
     ) {
-        // let device = &wgpu_render_state.device;
+        let device = &wgpu_render_state.device;
 
-        // let uniform_buffer = create_buffer_bytes(device, LABEL, uniforms);
+        let uniform_buffer = create_buffer_bytes(device, LABEL, bytemuck::bytes_of(&uniforms));
+        let petals: Vec<_> = petals.iter().map(bytemuck::bytes_of).collect();
+        let petal_buffer = create_buffer_bytes(device, LABEL, &petals.concat());
         let bind_group = [
-            // view_to_bind_group(&white.wgpu_view, 0),
-            // view_to_bind_group(&black.wgpu_view, 1),
-            view_to_bind_group(&target.wgpu_view, 2),
-            // buffer_to_bind_group(&uniform_buffer, 3),
+            view_to_bind_group(&atlas.wgpu_view, 0),
+            view_to_bind_group(&target.wgpu_view, 1),
+            buffer_to_bind_group(&petal_buffer, 2),
+            buffer_to_bind_group(&uniform_buffer, 3),
         ];
 
         run(

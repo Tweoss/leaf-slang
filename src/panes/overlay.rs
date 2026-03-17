@@ -199,8 +199,7 @@ pub fn ui(
     }
 
     ui.heading("Values");
-    ui.label(format!("White bbox {:?}", white.2));
-    ui.label(format!("Black bbox {:?}", black.2));
+    ui.label(format!("bboxes {:?} {:?}", white.2, black.2));
     ui.label(format!("dangle {} dpos {:?}", overlay.dangle, overlay.dpos));
 
     ui.label("background color");
