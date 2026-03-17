@@ -94,6 +94,7 @@ pub fn init(
                 continue;
             };
             for (i, (white_bg, rect)) in labels.bounding_boxes.iter().enumerate() {
+                println!("handling labels for {} {i}", image.id);
                 // Only if white background
                 if *white_bg {
                     overlay_state.set_dim(render_state, (image.id.directory.clone(), i), *rect);

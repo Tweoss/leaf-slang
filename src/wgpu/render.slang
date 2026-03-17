@@ -83,7 +83,6 @@ struct Camera {
   }
 }
 
-      // float4 outv = p.sample_tex(r.value.uv, input);
 Optional<PetalHitResult> hitPetals(Ray ray) {
   Optional<PetalHitResult> outv;
   for (int i = 0; i < petalCount; i++) {
@@ -127,22 +126,5 @@ void imagemain(uint2 dispatchThreadID: SV_DispatchThreadID)
       break;
     }
   }
-  // for (int i = 0; i < petalCount; i++) {
-  //   Petal p = petals[i];
-  //   Optional<RayHitResult> r = p.hit(ray);
-  //   if (r.hasValue) {
-  //     float4 outv = p.sample_tex(r.value.uv, input);
-      
-  //     output.Store(dispatchThreadID, outv);
-  //     return;
-  //   }
-  // }
-  // if (all(dispatchThreadID < float2(1160, 89))) {
-  //   output.Store(dispatchThreadID, input[dispatchThreadID]);
-  //   return;
-  // }
-  // output.Store(dispatchThreadID, bilinearSample(input, uv * float2(1160, 89)));
   output.Store(dispatchThreadID, float4(float3(1.0), 1.0));
-  // output.Store(dispatchThreadID, float4(petals[1].texture_size / 200.0, 1.0, 1.0));
-  // output.Store(dispatchThreadID, float4(116, 89, 0, 255) / float4(255));
 }

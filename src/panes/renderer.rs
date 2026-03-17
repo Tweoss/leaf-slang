@@ -39,7 +39,6 @@ pub fn ui(
     render_module: &mut RenderModule,
 ) {
     let render_state = frame.wgpu_render_state().expect("wgpu render state");
-    let mut rerender = false;
     if ui.button("Generate Texture").clicked() {
         let mut ts: Vec<_> = overlay_state.textures.iter().collect();
         ts.sort_by_key(|ts| ts.0);
@@ -75,8 +74,6 @@ pub fn ui(
         }
 
         renderer_state.big_texture = Some(big_texture);
-
-        rerender = true;
     }
 
     if ui.button("reload").clicked() {
@@ -86,9 +83,7 @@ pub fn ui(
     if let Some(big_texture) = &mut renderer_state.big_texture {
         ui.image(ImageSource::Texture(big_texture.egui));
 
-        rerender |= DragValue::new(&mut renderer_state.slider_value)
-            .ui(ui)
-            .changed();
+        DragValue::new(&mut renderer_state.slider_value).ui(ui);
 
         let output = renderer_state.output_texture.get_or_insert_with(|| {
             let device = &render_state.device;
@@ -100,33 +95,40 @@ pub fn ui(
             SharedTexture::from_texture_id(wgpu, view, id)
         });
 
-        if rerender {
-            let first_size = dbg!(renderer_state.textures[0].1);
-            let petals = [
-                Petal::new(
-                    [0.0, 0.0, renderer_state.slider_value],
-                    [-1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [0, 0],
-                    [first_size.x as u32, first_size.y as u32],
-                ),
-                Petal::new(
-                    [1.0, 1.0, -5.0],
-                    [-1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [0, 0],
-                    [first_size.x as u32, first_size.y as u32],
-                ),
-            ];
-            render_module.run(
-                render_state,
-                big_texture,
-                output,
-                &petals,
-                Uniforms::new(petals.len() as u32, renderer_state.cell_size.into()),
-                || {},
-            );
-        }
+        // if rerender {
+        let first_size = renderer_state.textures[0].1;
+        let petals = [
+            Petal::new(
+                [0.0, 0.0, renderer_state.slider_value],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0, 0],
+                [first_size.x as u32, first_size.y as u32],
+            ),
+            Petal::new(
+                [1.0, 1.0, -5.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0, 0],
+                [first_size.x as u32, first_size.y as u32],
+            ),
+            Petal::new(
+                [1.0, 2.0, -5.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [first_size.x as u32, 0],
+                [first_size.x as u32, first_size.y as u32],
+            ),
+        ];
+        render_module.run(
+            render_state,
+            big_texture,
+            output,
+            &petals,
+            Uniforms::new(petals.len() as u32, renderer_state.cell_size.into()),
+            || {},
+        );
+        // }
 
         ui.image(ImageSource::Texture(output.egui));
     }

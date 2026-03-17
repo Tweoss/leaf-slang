@@ -103,6 +103,15 @@ impl App {
             &mut out.image_pairs,
         );
 
+        panes::overlay::init(
+            &mut out.opacity_module,
+            &out.image_pairs,
+            &mut out.overlay_state,
+            &out.persistent.labels,
+            &mut out.persistent.overlays,
+            render_state,
+        );
+
         out
     }
 }

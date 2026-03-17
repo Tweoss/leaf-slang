@@ -53,6 +53,45 @@ pub struct Overlay {
     pub dangle: f32,
 }
 
+pub fn init(
+    opacity_module: &mut OpacityModule,
+    image_pairs: &[ImagePair],
+    overlay_state: &mut OverlayState,
+    labels: &HashMap<ImageID, Labels>,
+    overlays: &mut HashMap<(String, usize), Overlay>,
+    render_state: &RenderState,
+) {
+    for pair in image_pairs {
+        let Some([white, black]) = get_white_black_textures(overlay_state, labels, &pair.1) else {
+            continue;
+        };
+        let directory = white.3.id.directory.clone();
+        let Some(labels) = labels.get(&white.3.id) else {
+            continue;
+        };
+        for petal_index in 0..labels.bounding_boxes.len() {
+            let Some(target) = overlay_state
+                .textures
+                .get_mut(&(directory.clone(), petal_index))
+            else {
+                continue;
+            };
+            println!("handling overlays for {} {petal_index}", white.3.id);
+            let overlay = overlays
+                .entry((directory.clone(), petal_index))
+                .or_default();
+            opacity_module.run(
+                render_state,
+                target.0,
+                black.2,
+                (&mut target.1, white.0, black.0),
+                overlay,
+                || {},
+            );
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn ui(
     ui: &mut egui::Ui,
@@ -91,22 +130,7 @@ pub fn ui(
         opacity_module.reload(&frame.wgpu_render_state().expect("wgpu state").device);
     }
 
-    let mut iter = images.iter().map(|i| (i, labels.get(&i.id).unwrap()));
-    let pair = [iter.next().unwrap(), iter.next().unwrap()].map(|i| {
-        let bbox = i.1.bounding_boxes[overlay_state.petal_index];
-        Some((i.0.normalized_texture.as_ref()?, bbox.0, bbox.1, i.0))
-    });
-
-    let Some(i0) = pair[0] else {
-        ui.label("missing normalized images");
-        return None;
-    };
-    let Some(i1) = pair[1] else {
-        ui.label("missing normalized images");
-        return None;
-    };
-    // Use white background on bottom.
-    let (white, black) = if i0.1 { (i0, i1) } else { (i1, i0) };
+    let [white, black] = get_white_black_textures(overlay_state, labels, images)?;
 
     let overlay = overlays
         .entry((directory.clone(), overlay_state.petal_index))
@@ -221,6 +245,22 @@ pub fn ui(
     }
 
     None
+}
+
+fn get_white_black_textures<'a>(
+    overlay_state: &mut OverlayState,
+    labels: &HashMap<ImageID, Labels>,
+    images: &'a [crate::images::Image; 2],
+) -> Option<[(&'a SharedTexture, bool, Rect, &'a crate::images::Image); 2]> {
+    let mut iter = images.iter().map(|i| (i, labels.get(&i.id).unwrap()));
+    let pair = [iter.next().unwrap(), iter.next().unwrap()].map(|i| {
+        let bbox = i.1.bounding_boxes[overlay_state.petal_index];
+        Some((i.0.normalized_texture.as_ref()?, bbox.0, bbox.1, i.0))
+    });
+    let i0 = pair[0]?;
+    let i1 = pair[1]?;
+    let (white, black) = if i0.1 { (i0, i1) } else { (i1, i0) };
+    Some([white, black])
 }
 
 // The pivot point at the end of the arm "swings" the center of the image around.
