@@ -5,7 +5,6 @@ float4 bilinearSample(Texture2D<float4> input, float2 uv) {
   float2 size = float2(width, height);
 
   // Center onto the center of each uv cell by subtracting .5
-  // float2 coord = (uv.mul(float2(2000, 2000)));
   float2 coord = max(uv.mul(size) - float2(0.5), float2(0));
 
   uint2 m = uint2(floor(coord));
@@ -16,7 +15,6 @@ float4 bilinearSample(Texture2D<float4> input, float2 uv) {
   float4 v10 = input[min(m + uint2(1, 0), uint2(size) - uint2(1))];
   float4 v11 = input[min(m + uint2(1, 1), uint2(size) - uint2(1))];
   
-  // return v00;
   return (v11.scale(w.x) + v01.scale(wi.x)).scale(w.y) + (v10.scale(w.x) + v00.scale(wi.x)).scale(wi.y);
 }
 

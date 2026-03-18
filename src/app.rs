@@ -18,7 +18,6 @@ use crate::{
 };
 
 pub struct App {
-    // Example stuff:
     pub custom_3d: Custom3d,
     pub persistent: Persistent,
     pub image_pairs: Vec<ImagePair>,

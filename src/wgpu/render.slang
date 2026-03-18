@@ -57,11 +57,17 @@ struct Petal {
 
 uniform uint petalCount;
 uniform uint2 cellSize;
+uniform float4x4 cameraInvViewMat;
 
 struct Ray {
   float3 origin;
   float3 direction;
   float2 tRange;
+  Ray transform(float4x4 matrix) {
+    float3 origin = mul(matrix, float4(origin, 1.0)).xyz;
+    float3 direction = mul(matrix, float4(direction, 0.0)).xyz;
+    return Ray(origin, direction, tRange);
+  }
 }
 
 struct RayHitResult {
@@ -76,10 +82,11 @@ struct PetalHitResult {
 
 struct Camera {
   float focalLength;
+  float4x4 invViewMatrix;
 
   Ray generateRay(float2 uv, float2 canvasSize) {
-    return Ray(float3(0.0), float3((uv - float2(0.5)) * canvasSize / focalLength, -1), float2(0, float.maxValue));
-    // .transform(invViewMatrix);
+    return Ray(float3(0.0), float3((uv - float2(0.5)) * canvasSize / focalLength, -1), float2(0, float.maxValue))
+    .transform(invViewMatrix);
   }
 }
 
@@ -109,7 +116,12 @@ void imagemain(uint2 dispatchThreadID: SV_DispatchThreadID)
   output.Store(dispatchThreadID, float4(1.0, 1.0, 1.0, 1.0));
 
   float2 uv = float2(dispatchThreadID) / float2(outputDim);
-  Camera camera = Camera(outputDim.x);
+  // Col major
+  // Camera camera = Camera(outputDim.x, float4x4(
+  //   float4(1, 0, 0, 0), float4(0, 1, 0, 0), float4(0.0, 0.0, 1.0, 0.0), float4(0.0, 0.0, 0, 1)
+  //   // float4(0), float4(0.0), float4(0.0, 0.0, 1.0, 0.0), float4(0.0, 0.0, 1, 0)
+  // ));
+  Camera camera = Camera(outputDim.x, cameraInvViewMat);
   Ray ray = camera.generateRay(uv, float2(outputDim));
 
   while (true) {
@@ -121,6 +133,8 @@ void imagemain(uint2 dispatchThreadID: SV_DispatchThreadID)
         continue;
       }
       output.Store(dispatchThreadID, outv);
+      uint index = clamp(uint(uv.x * 10.0), 0, 3);
+      output.Store(dispatchThreadID, float4(cameraInvViewMat[index].xyz, 1.0));
       return;
     } else {
       break;

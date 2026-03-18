@@ -13,22 +13,30 @@ struct Petal_std430_0
 
 @binding(0) @group(0) var input_0 : texture_2d<f32>;
 
+struct _MatrixStorage_float4x4_ColMajorstd140_0
+{
+    @align(16) data_0 : array<vec4<f32>, i32(4)>,
+};
+
 struct GlobalParams_std140_0
 {
     @align(16) petalCount_0 : u32,
     @align(8) cellSize_0 : vec2<u32>,
+    @align(16) cameraInvViewMat_0 : _MatrixStorage_float4x4_ColMajorstd140_0,
 };
 
 @binding(3) @group(0) var<uniform> globalParams_0 : GlobalParams_std140_0;
 struct Camera_0
 {
      focalLength_0 : f32,
+     invViewMatrix_0 : mat4x4<f32>,
 };
 
-fn Camera_x24init_0( focalLength_1 : f32) -> Camera_0
+fn Camera_x24init_0( focalLength_1 : f32,  invViewMatrix_1 : mat4x4<f32>) -> Camera_0
 {
     var _S1 : Camera_0;
     _S1.focalLength_0 = focalLength_1;
+    _S1.invViewMatrix_0 = invViewMatrix_1;
     return _S1;
 }
 
@@ -48,9 +56,14 @@ fn Ray_x24init_0( origin_1 : vec3<f32>,  direction_1 : vec3<f32>,  tRange_1 : ve
     return _S2;
 }
 
-fn Camera_generateRay_0( this_0 : Camera_0,  uv_0 : vec2<f32>,  canvasSize_0 : vec2<f32>) -> Ray_0
+fn Ray_transform_0( this_0 : Ray_0,  matrix_0 : mat4x4<f32>) -> Ray_0
 {
-    return Ray_x24init_0(vec3<f32>(0.0f), vec3<f32>((uv_0 - vec2<f32>(0.5f)) * canvasSize_0 / vec2<f32>(this_0.focalLength_0), -1.0f), vec2<f32>(0.0f, 3.4028234663852886e+38f));
+    return Ray_x24init_0((((vec4<f32>(this_0.origin_0, 1.0f)) * (matrix_0))).xyz, (((vec4<f32>(this_0.direction_0, 0.0f)) * (matrix_0))).xyz, this_0.tRange_0);
+}
+
+fn Camera_generateRay_0( this_1 : Camera_0,  uv_0 : vec2<f32>,  canvasSize_0 : vec2<f32>) -> Ray_0
+{
+    return Ray_transform_0(Ray_x24init_0(vec3<f32>(0.0f), vec3<f32>((uv_0 - vec2<f32>(0.5f)) * canvasSize_0 / vec2<f32>(this_1.focalLength_0), -1.0f), vec2<f32>(0.0f, 3.4028234663852886e+38f)), this_1.invViewMatrix_0);
 }
 
 struct RayHitResult_0
@@ -75,14 +88,14 @@ struct _slang_Optional_RayHitResult_0
      hasValue_0 : bool,
 };
 
-fn Petal_hit_0( this_1 : ptr<function, Petal_std430_0>,  ray_0 : Ray_0) -> _slang_Optional_RayHitResult_0
+fn Petal_hit_0( this_2 : ptr<function, Petal_std430_0>,  ray_0 : Ray_0) -> _slang_Optional_RayHitResult_0
 {
-    var normal_2 : vec3<f32> = normalize(cross((*this_1).xaxis_0, (*this_1).yaxis_0));
-    var t_2 : f32 = (dot((*this_1).pos_0, normal_2) - dot(ray_0.origin_0, normal_2)) / dot(ray_0.direction_0, normal_2);
-    var _S4 : vec3<f32> = ray_0.origin_0 + vec3<f32>(t_2) * ray_0.direction_0 - (*this_1).pos_0;
-    var _S5 : f32 = length((*this_1).xaxis_0);
-    var _S6 : f32 = length((*this_1).yaxis_0);
-    var uv_3 : vec2<f32> = vec2<f32>(dot(_S4, (*this_1).xaxis_0) / _S5, dot(_S4, (*this_1).yaxis_0) / _S6) / vec2<f32>(_S5, _S6);
+    var normal_2 : vec3<f32> = normalize(cross((*this_2).xaxis_0, (*this_2).yaxis_0));
+    var t_2 : f32 = (dot((*this_2).pos_0, normal_2) - dot(ray_0.origin_0, normal_2)) / dot(ray_0.direction_0, normal_2);
+    var _S4 : vec3<f32> = ray_0.origin_0 + vec3<f32>(t_2) * ray_0.direction_0 - (*this_2).pos_0;
+    var _S5 : f32 = length((*this_2).xaxis_0);
+    var _S6 : f32 = length((*this_2).yaxis_0);
+    var uv_3 : vec2<f32> = vec2<f32>(dot(_S4, (*this_2).xaxis_0) / _S5, dot(_S4, (*this_2).yaxis_0) / _S6) / vec2<f32>(_S5, _S6);
     var _S7 : bool;
     if((all((uv_3 >= vec2<f32>(0.0f)))))
     {
@@ -228,9 +241,9 @@ fn bilinearSampleRange_0( input_2 : texture_2d<f32>,  offset_0 : vec2<u32>,  siz
     return bilinearSample_0(input_2, (vec2<f32>(offset_0) + uv_5 * vec2<f32>(size_1)) / vec2<f32>(width_1, height_1));
 }
 
-fn Petal_sample_tex_0( this_2 : Petal_0,  uv_6 : vec2<f32>,  input_3 : texture_2d<f32>) -> vec4<f32>
+fn Petal_sample_tex_0( this_3 : Petal_0,  uv_6 : vec2<f32>,  input_3 : texture_2d<f32>) -> vec4<f32>
 {
-    return bilinearSampleRange_0(input_3, this_2.texture_offset_0, this_2.texture_size_0, uv_6);
+    return bilinearSampleRange_0(input_3, this_3.texture_offset_0, this_3.texture_size_0, uv_6);
 }
 
 fn getDim_0() -> vec2<u32>
@@ -253,7 +266,8 @@ fn imagemain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
     }
     textureStore((output_0), (dispatchThreadID_1), (vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f)));
     var _S30 : vec2<f32> = vec2<f32>(_S29);
-    var ray_2 : Ray_0 = Camera_generateRay_0(Camera_x24init_0(f32(_S29.x)), vec2<f32>(dispatchThreadID_1) / _S30, _S30);
+    var uv_7 : vec2<f32> = vec2<f32>(dispatchThreadID_1) / _S30;
+    var ray_2 : Ray_0 = Camera_generateRay_0(Camera_x24init_0(f32(_S29.x), mat4x4<f32>(globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(3)])), uv_7, _S30);
     for(;;)
     {
         var hit_0 : _slang_Optional_PetalHitResult_0 = hitPetals_0(ray_2);
@@ -266,6 +280,7 @@ fn imagemain(@builtin(global_invocation_id) dispatchThreadID_0 : vec3<u32>)
                 continue;
             }
             textureStore((output_0), (dispatchThreadID_1), (outv_1));
+            textureStore((output_0), (dispatchThreadID_1), (vec4<f32>(mat4x4<f32>(globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(0)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(1)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(2)], globalParams_0.cameraInvViewMat_0.data_0[i32(0)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(1)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(2)][i32(3)], globalParams_0.cameraInvViewMat_0.data_0[i32(3)][i32(3)])[clamp(u32(uv_7.x * 10.0f), u32(0), u32(3))].xyz, 1.0f)));
             return;
         }
         else

@@ -1,4 +1,5 @@
 use eframe::egui_wgpu::RenderState;
+use nalgebra::Matrix4;
 use wgpu::{Device, ShaderModule};
 
 use super::*;
@@ -47,16 +48,19 @@ impl Petal {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Uniforms {
     petal_count: u32,
-    _p0: [u32; 3],
+    _p0: [u32; 1],
     cell_size: [u32; 2],
+    camera_inv_view_mat: [[f32; 4]; 4],
 }
 
 impl Uniforms {
-    pub fn new(petal_count: u32, cell_size: [u32; 2]) -> Self {
+    pub fn new(petal_count: u32, cell_size: [u32; 2], camera_inv_view: Matrix4<f32>) -> Self {
         Self {
             petal_count,
-            _p0: [0; 3],
+            _p0: [0; 1],
             cell_size,
+            // Colmajor for both
+            camera_inv_view_mat: camera_inv_view.data.0,
         }
     }
 }

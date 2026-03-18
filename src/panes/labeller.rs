@@ -12,7 +12,7 @@ use crate::{
 };
 
 // 8.5 x 11
-const SCALE: u32 = 5;
+const SCALE: u32 = 8;
 const WARP_OUTPUT_SIZE: (u32, u32) = (85 * SCALE, 110 * SCALE);
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, Copy)]

@@ -1,5 +1,6 @@
 use eframe::{Frame, egui_wgpu::RenderState};
 use egui::{DragValue, ImageSource, Vec2, Widget};
+use nalgebra::{Matrix4, Point3, Vector3};
 
 use crate::{
     images::SharedTexture,
@@ -16,18 +17,65 @@ pub struct RendererState {
     cell_size: (u32, u32),
     output_texture: Option<SharedTexture>,
     textures: Vec<((u32, u32), Vec2)>,
+    camera: Camera,
+    camera_input: [[f32; 3]; 3],
     slider_value: f32,
 }
 
 impl RendererState {
     pub fn new(_: &RenderState) -> Self {
+        let camera_input = [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]];
         Self {
             big_texture: None,
             cell_size: (1, 1),
             output_texture: None,
             textures: vec![],
+            camera: dbg!(Camera::looking_at(
+                Point3::from_slice(&camera_input[0]),
+                Point3::from_slice(&camera_input[1]),
+                Vector3::from_row_iterator(camera_input[2].iter().copied()),
+            ))
+            .expect("failed to construct camera"),
+            camera_input,
             slider_value: -1.0,
         }
+    }
+}
+
+#[derive(Debug)]
+struct Camera {
+    inv_view_mat: Matrix4<f32>,
+}
+
+impl Camera {
+    fn looking_at(center: Point3<f32>, target: Point3<f32>, up: Vector3<f32>) -> Option<Self> {
+        // a unit negative z vector should map to a unit (target - center) vector
+        const MIN_NORM: f32 = 0.001;
+        let dir = (target - center).try_normalize(MIN_NORM)?;
+        // if up is very close in direction to the dir vector, then gram schmidt won't be stable
+        let dot = up.dot(&dir);
+        if up.magnitude() < MIN_NORM {
+            return None;
+        }
+        if (1.0 - dot / up.magnitude()).abs() < MIN_NORM {
+            return None;
+        }
+        // Gram schmidt
+        let up = (up - dot * dir).try_normalize(MIN_NORM)?;
+        let left = up.cross(&dir);
+        Some(Self {
+            inv_view_mat: Matrix4::from_row_iterator(
+                [
+                    [left.x, up.x, dir.x, center.x],
+                    [left.y, up.y, dir.y, center.y],
+                    [left.z, up.z, dir.z, center.z],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+                .concat()
+                .iter()
+                .copied(),
+            ),
+        })
     }
 }
 
@@ -80,6 +128,39 @@ pub fn ui(
         render_module.reload(&render_state.device);
     }
 
+    let mut changed = false;
+    for (vs, label) in
+        renderer_state
+            .camera_input
+            .iter_mut()
+            .zip(["View center", "View dir", "View up"])
+    {
+        ui.label(label);
+        ui.horizontal(|ui| {
+            for v in vs {
+                if DragValue::new(v)
+                    .range(-2.0..=2.0)
+                    .speed(0.01)
+                    .ui(ui)
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+    }
+    if changed {
+        if let Some(looking_at) = Camera::looking_at(
+            Point3::from_slice(&renderer_state.camera_input[0]),
+            Point3::from_slice(&renderer_state.camera_input[1]),
+            Vector3::from_row_iterator(renderer_state.camera_input[2].iter().copied()),
+        ) {
+            renderer_state.camera = dbg!(looking_at);
+        } else {
+            ui.label("bad");
+        }
+    }
+
     if let Some(big_texture) = &mut renderer_state.big_texture {
         ui.image(ImageSource::Texture(big_texture.egui));
 
@@ -125,7 +206,11 @@ pub fn ui(
             big_texture,
             output,
             &petals,
-            Uniforms::new(petals.len() as u32, renderer_state.cell_size.into()),
+            Uniforms::new(
+                petals.len() as u32,
+                renderer_state.cell_size.into(),
+                renderer_state.camera.inv_view_mat,
+            ),
             || {},
         );
         // }
